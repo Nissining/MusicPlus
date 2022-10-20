@@ -5,4 +5,4 @@ MusicPlus - 音乐插件
 
 Plugin Support:
 - Nukkit Version: NukkitX, Nukkit PM1E
-- Minicraft Version: 1.19-Laster
+- Minecraft Version: 1.19-Laster
