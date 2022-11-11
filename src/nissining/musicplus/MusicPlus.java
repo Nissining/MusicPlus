@@ -72,7 +72,6 @@ public class MusicPlus extends PluginBase implements Listener {
 
         getServer().getPluginManager().registerEvents(this, this);
 
-        MessageSend.sendMail();
     }
 
     public List<Player> getSongPlayers() {
