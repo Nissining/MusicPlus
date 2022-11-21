@@ -37,6 +37,9 @@ public class Layer {
     }
 
     public void setVolume(byte volume) {
-        this.volume = volume;
+        if (this.volume != volume) {
+            this.volume = volume;
+        }
     }
+
 }

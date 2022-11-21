@@ -70,4 +70,9 @@ public class Song {
     public String getSongName() {
         return songName;
     }
+
+    public String getFormatSongName(String tsn) {
+        return (tsn.equalsIgnoreCase(getSongName()) ? "§l§a" : "§f") + getSongName();
+    }
+
 }

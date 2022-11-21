@@ -7,6 +7,8 @@ import cn.nukkit.entity.Entity;
 import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.Listener;
 import cn.nukkit.event.level.ChunkUnloadEvent;
+import cn.nukkit.event.player.PlayerJoinEvent;
+import cn.nukkit.event.player.PlayerQuitEvent;
 import cn.nukkit.level.Level;
 import cn.nukkit.level.Position;
 import cn.nukkit.nbt.tag.CompoundTag;
@@ -18,7 +20,8 @@ import nissining.musicplus.entity.SongStatus;
 import nissining.musicplus.music.MusicAPI;
 import nissining.musicplus.music.MusicTask;
 import nissining.musicplus.music.utils.Song;
-import nissining.musicplus.utils.MessageSend;
+import nissining.musicplus.player.MusicPlayer;
+import nissining.musicplus.player.MusicPlayerMenu;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -30,12 +33,10 @@ import java.util.concurrent.Executors;
 public class MusicPlus extends PluginBase implements Listener {
 
     public static String pluginName = "MusicPlus";
-
     private Config config;
-
     private final ExecutorService service = Executors.newWorkStealingPool();
-
     public MusicAPI musicAPI;
+    public List<String> musicWorlds;
 
     public static MusicPlus ins;
 
@@ -43,7 +44,7 @@ public class MusicPlus extends PluginBase implements Listener {
     public void onLoad() {
         ins = this;
     }
-    
+
     @Override
     public void onEnable() {
         if (getDataFolder().mkdirs()) {
@@ -57,9 +58,11 @@ public class MusicPlus extends PluginBase implements Listener {
             put("music_worlds", new ArrayList<String>());
             put("song_status_pos", new ArrayList<Double>());
             put("song_status_level", "");
-            put("play_mode", 3);
             put("song_status_title", "--- MusicPlus MusicList ---");
+            put("song_status_maxShow", 10);
+            put("play_mode", 3);
         }});
+        this.musicWorlds = config.getStringList("music_worlds");
 
         this.creSongStatus();
 
@@ -71,25 +74,16 @@ public class MusicPlus extends PluginBase implements Listener {
         this.startPlay();
 
         getServer().getPluginManager().registerEvents(this, this);
-
     }
 
-    public List<Player> getSongPlayers() {
-        List<String> musicWorlds = config.getStringList("music_worlds");
-
-        if (musicWorlds.isEmpty()) {
-            return new ArrayList<>(getServer().getOnlinePlayers().values());
-        } else {
-            List<Player> ps = new ArrayList<>();
-            for (String ln : musicWorlds) {
-                Level level = getServer().getLevelByName(ln);
-                if (level != null) {
-                    ps.addAll(level.getPlayers().values());
-                }
-            }
-            return ps;
+    public boolean isInMusicWorld(Player player) {
+        if (musicWorlds.isEmpty())
+            return true;
+        for (String musicWorld : musicWorlds) {
+            if (player.level.getFolderName().equalsIgnoreCase(musicWorld))
+                return true;
         }
-
+        return false;
     }
 
     private void startPlay() {
@@ -114,74 +108,124 @@ public class MusicPlus extends PluginBase implements Listener {
 
     }
 
+    private static final String[] oplabel = new String[]{
+            "spawn", "next", "last", "play", "mode", "add", "reload", "reloadSong"
+    };
+
+    private boolean isOpLabel(String label) {
+        for (String s : oplabel) {
+            if (s.equalsIgnoreCase(label))
+                return true;
+        }
+        return false;
+    }
+
     @Override
     public boolean onCommand(CommandSender se, Command command, String s, String[] args) {
-        // /rmp spawn
+        String t = "";
         if (args.length >= 1) {
-            switch (args[0]) {
-                case "help":
-                    StringJoiner sj = new StringJoiner("\n- ", "--- MusicPlus HelpList ---", "");
-                    sj.add("")
-                            .add("/mplus <args> - 主要命令")
-                            .add("")
-                            .add("args:")
-                            .add("spawn - 创建SongStatus")
-                            .add("next - 下一首")
-                            .add("last - 上一首")
-                            .add("play <id> - 指定播放")
-                            .add("mode <1|2|3> - 切换模式(1=列表循环播放 2=列表顺序播放 3=随机播放)")
-                            .add("reload - 热重载配置")
-                            .add("reloadSong - 重载音乐列表")
-                            .add("")
-                            .add("Plugin By Nissining!");
 
-                    se.sendMessage(sj.toString());
-                    break;
-                case "spawn":
-                    if (se instanceof Player) {
-                        Player p = (Player) se;
-                        List<Double> pos = new ArrayList<>() {{
-                            add(p.getX());
-                            add(p.getY());
-                            add(p.getZ());
-                        }};
-                        config.set("song_status_pos", pos);
-                        config.set("song_status_level", p.level.getFolderName());
-                        config.save();
-                        creSongStatus();
-                        p.sendMessage("Song status created and saved!");
-                    }
-                    break;
-                case "play": // mplus play <page> <0-9>
-                    if (args.length == 2) {
-                        Song song = musicAPI.setNowSongById(Integer.parseInt(args[1]));
-                        se.sendMessage("已切换为Song: " + song.getSongName());
-                    }
-                    break;
-                case "next":
-                    se.sendMessage("已切换到下一首！" + musicAPI.nextSong().getSongName());
-                    break;
-                case "last":
-                    se.sendMessage("已切换到上一首！" + musicAPI.lastSong().getSongName());
-                    break;
-                case "mode":
-                    if (args.length == 2) {
-                        se.sendMessage("播放模式切换为：" + musicAPI.setPlayMode(Integer.parseInt(args[1])));
-                    }
-                    break;
-                case "reload":
-                    this.config = new Config(getDataFolder() + "/config.yml", 2);
-                    se.sendMessage("config reloaded!");
-                    break;
-                case "reloadSong":
-                    musicAPI.loadAllSong(new File(getDataFolder(), "music"));
-                    musicAPI.init(config.getInt("play_mode"));
-                    se.sendMessage("已重载音乐列表！");
-                    break;
+            if (isOpLabel(args[0]) && !se.isOp()) {
+                t = "需要OP权限";
+
+            } else {
+                switch (args[0]) {
+                    case "help":
+                        StringJoiner sj = new StringJoiner("\n- ", "--- MusicPlus HelpList ---", "");
+                        sj.add("")
+                                .add("/mplus <args> - 主要命令")
+                                .add("")
+                                .add("-------- args --------")
+                                .add("spawn - 创建SongStatus")
+                                .add("next - 下一首")
+                                .add("last - 上一首")
+                                .add("play <id> - 指定播放")
+                                .add("mode <1|2|3> - 切换模式(1=列表循环播放 2=列表顺序播放 3=随机播放)")
+                                .add("my - 打开个人设置")
+                                .add("add - 快进15s")
+                                .add("")
+                                .add("reload - 热重载配置")
+                                .add("reloadSong - 重载音乐列表")
+                                .add("----------------------")
+                                .add("Plugin By Nissining!");
+
+                        t = sj.toString();
+
+                        break;
+                    case "spawn":
+                        if (se instanceof Player) {
+                            Player p = (Player) se;
+                            List<Double> pos = new ArrayList<>() {{
+                                add(p.getX());
+                                add(p.getY());
+                                add(p.getZ());
+                            }};
+                            config.set("song_status_pos", pos);
+                            config.set("song_status_level", p.level.getFolderName());
+                            config.save();
+                            creSongStatus();
+                            t = "Song status created and saved!";
+                        }
+                        break;
+                    case "play": // mplus play <page> <0-9>
+                        if (args.length == 2) {
+                            Song song = musicAPI.setNowSongById(Integer.parseInt(args[1]));
+                            if (song == null) {
+                                t = "播放失败！Song不存在！";
+                            } else {
+                                t = "已切换为Song: " + song.getSongName();
+                            }
+                        }
+                        break;
+                    case "next":
+                        if (musicAPI.nextSong()) {
+                            t = "已切换到下一首！ " + musicAPI.getNowSongName();
+                        } else {
+                            t = "下一首失败！可能是列表顺序播放导致！";
+                        }
+                        break;
+                    case "last":
+                        if (musicAPI.lastSong()) {
+                            t = "已切换到上一首！ " + musicAPI.getNowSongName();
+                        } else {
+                            t = "上一首失败！可能是列表顺序播放导致！";
+                        }
+                        break;
+                    case "mode":
+                        if (args.length == 2) {
+                            t = "播放模式切换为：" + musicAPI.setPlayMode(Integer.parseInt(args[1]));
+                        }
+                        break;
+                    case "reload":
+                        this.config = new Config(getDataFolder() + "/config.yml", 2);
+                        t = "config reloaded!";
+                        break;
+                    case "reloadSong":
+                        musicAPI.loadAllSong(new File(getDataFolder(), "music"));
+                        musicAPI.init(config.getInt("play_mode"));
+                        t = "已重载音乐列表！";
+                        break;
+                    case "my": // ui
+                        MusicPlayerMenu.openMenu((Player) se);
+                        break;
+                    case "add":
+                        musicAPI.addMusicTick((short) 15);
+                        t = "快进15s";
+                        break;
+                    case "addI":
+                        musicAPI.addMusicTick(Short.parseShort(args[1]));
+                        break;
+                }
             }
+
         } else {
-            return false;
+            t = "Usage: /mplus help";
         }
+
+        if (!t.isEmpty()) {
+            se.sendMessage(t);
+        }
+
         return true;
     }
 
@@ -193,6 +237,19 @@ public class MusicPlus extends PluginBase implements Listener {
                 break;
             }
         }
+    }
+
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        Player player = event.getPlayer();
+        if (isInMusicWorld(player)) {
+            MusicPlayer.addMusicPlayer(player);
+        }
+    }
+
+    @EventHandler
+    public void onQuit(PlayerQuitEvent event) {
+        MusicPlayer.removeMusicPlayer(event.getPlayer());
     }
 
     public static void debug(String debug) {

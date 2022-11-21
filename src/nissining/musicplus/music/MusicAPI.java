@@ -2,14 +2,14 @@ package nissining.musicplus.music;
 
 import cn.nukkit.Player;
 import cn.nukkit.level.Sound;
-import cn.nukkit.network.protocol.BlockEventPacket;
 import cn.nukkit.network.protocol.PlaySoundPacket;
-import cn.nukkit.utils.TextFormat;
+
 import nissining.musicplus.MusicPlus;
 import nissining.musicplus.music.utils.Layer;
 import nissining.musicplus.music.utils.NBSDecoder;
 import nissining.musicplus.music.utils.Note;
 import nissining.musicplus.music.utils.Song;
+import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.utils.Progress;
 
 import java.io.File;
@@ -24,12 +24,10 @@ import java.util.*;
 public class MusicAPI {
 
     public Song nowSong = null; // 正在播放的nbs文件
-    public boolean stopMusic = false; // 开始/暂停音乐
-    public byte volume = 100; // 音量大小
     public short musicTick = -1;
     public long lastPlayed = 0;
     public int musicId = 0;
-    public int playMode = 0; // 0=列表顺序 1=列表循环 2=单曲循环 3=随机
+    public int playMode = 0;
 
     public List<Song> musicList = new ArrayList<>();
 
@@ -40,8 +38,8 @@ public class MusicAPI {
     public MusicAPI() {
     }
 
-    public byte getVolume() {
-        return volume;
+    public String getNowSongName() {
+        return nowSong.getSongName();
     }
 
     public String setPlayMode(int playMode) {
@@ -74,6 +72,7 @@ public class MusicAPI {
 
         if (!songs.isEmpty()) {
             musicList = songs;
+            MusicPlus.debug("已加载共计 " + musicList.size() + " 首Song");
         }
     }
 
@@ -84,43 +83,41 @@ public class MusicAPI {
         if (this.nowSong == null) {
             this.nextSongByMode();
         }
-        this.stopMusic = false;
     }
-
-/*
-    public void reset() {
-        playMode = 0;
-        musicId = 0;
-        musicTick = -1;
-        nowSong = null;
-        stopMusic = false;
-    }
-*/
 
     /**
      * 下一首
      */
-    public Song nextSong() {
+    public boolean nextSong() {
         int index = musicList.indexOf(nowSong);
         int nextId;
         if (index >= musicList.size() - 1) {
+            if (playMode == 0) { // 列表顺序播放
+                return false;
+            }
             nextId = 0;
         } else {
             nextId = index + 1;
         }
-        return setNowSongById(nextId);
+        setNowSongById(nextId);
+        return true;
     }
 
     /**
      * 上一首
      */
-    public Song lastSong() {
+    public boolean lastSong() {
+        int nextId;
         if (musicId <= 0) {
-            musicId = musicList.size() - 1;
+            if (playMode == 0) {
+                return false;
+            }
+            nextId = musicList.size() - 1;
         } else {
-            musicId--;
+            nextId = musicId - 1;
         }
-        return setNowSongById(musicId);
+        setNowSongById(nextId);
+        return true;
     }
 
     public void randomSong() {
@@ -143,12 +140,13 @@ public class MusicAPI {
             MusicPlus.debug("超出范围！ID:" + id);
             return null;
         }
-        reloadSong();
+        resetSong();
+        musicId = id;
         nowSong = musicList.get(id);
         return nowSong;
     }
 
-    public void reloadSong() {
+    public void resetSong() {
         nowSong = null;
         musicTick = -1;
         lastPlayed = System.currentTimeMillis() + 3000;
@@ -178,32 +176,44 @@ public class MusicAPI {
         }
     }
 
-    public void tryPlay(List<Player> players) {
-        if (stopMusic || nowSong == null)
-            return;
+    //
+    public void setMusicTick(short i) {
+        this.musicTick = i;
+    }
 
-        if (System.currentTimeMillis() - lastPlayed < 50 * nowSong.getDelay())
+    // 快进
+    public void addMusicTick(short i) {
+        setMusicTick((short) Math.min(this.musicTick + i, nowSong.getLength()));
+    }
+
+    public void tryPlay(List<MusicPlayer> mps) {
+        if (nowSong == null) {
             return;
+        }
+
+        if (System.currentTimeMillis() - lastPlayed < 50 * nowSong.getDelay()) {
+            return;
+        }
+
+        boolean isFinish = musicTick > nowSong.getLength();
+
+        // 顺序播放
+        if (isFinish && musicId >= musicList.size() && playMode == 0) {
+            resetSong();
+            MusicPlus.debug("播放失败！原因： 模式是顺序播放！已播放完毕");
+            return;
+        }
 
         musicTick++;
-        if (musicTick > nowSong.getLength()) {
+        if (isFinish) {
             nextSongByMode();
             return;
         }
-        playTick(players, musicTick);
+        playTick(mps, musicTick);
         lastPlayed = System.currentTimeMillis();
     }
 
-    /**
-     * 解析音轨并发声
-     *
-     * @param players 需要发声的玩家
-     * @param tick    当前songTick
-     */
-    public void playTick(List<Player> players, int tick) {
-        float vol = getVolume() / 100f;
-        if (vol <= 0f) return;
-
+    public void playTick(List<MusicPlayer> mps, int tick) {
         Sound sound = null;
         float fl = 0;
 
@@ -325,35 +335,28 @@ public class MusicAPI {
                     break;
             }
 
-            for (Player p : players) {
-                try {
-                    if (p == null)
-                        continue;
-                    if (sound != null) {
-                        //
-                        BlockEventPacket particlePk = new BlockEventPacket();
-                        particlePk.x = p.getFloorX();
-                        particlePk.y = p.getFloorY();
-                        particlePk.z = p.getFloorZ();
-                        particlePk.case1 = note.getInstrument();
-                        particlePk.case2 = key33;
-                        particlePk.tryEncode();
+            for (MusicPlayer mp : mps) {
+                Player p = mp.getPlayer();
 
-                        // 播放声音
-                        PlaySoundPacket soundPk = new PlaySoundPacket();
-                        soundPk.name = sound.getSound();
-                        soundPk.volume = vol;
-                        soundPk.pitch = fl;
-                        soundPk.x = p.getFloorX();
-                        soundPk.y = p.getFloorY();
-                        soundPk.z = p.getFloorZ();
-                        p.dataPacket(soundPk);
-                        p.dataPacket(particlePk);
+                l.setVolume((byte) mp.getVol());
 
-                    }
-                } catch (Exception ignore) {
+                if (p == null || mp.stopMusic) {
+                    continue;
+                }
+
+                if (sound != null) {
+                    // 播放声音
+                    PlaySoundPacket soundPk = new PlaySoundPacket();
+                    soundPk.name = sound.getSound();
+                    soundPk.volume = l.getVolume();
+                    soundPk.pitch = fl;
+                    soundPk.x = p.getFloorX();
+                    soundPk.y = p.getFloorY();
+                    soundPk.z = p.getFloorZ();
+                    p.dataPacket(soundPk);
                 }
             }
+
         }
     }
 
@@ -361,20 +364,37 @@ public class MusicAPI {
         if (musicList.isEmpty()) {
             return "播放列表为空！请添加曲目";
         }
+        if (nowSong == null) {
+            return "没有正在播放的音乐!";
+        }
 
         String title = MusicPlus.ins.getConfig().getString("song_status_title");
 
         StringJoiner sj = new StringJoiner("\n", title, "");
         sj.add("");
         sj.add(playModeStat[playMode] + "模式");
-        for (int i = 0; i < 10; i++) {
-            if (i > musicList.size() - 1) {
-                sj.add("none");
-            } else {
+
+        int minPage = 0;
+        int maxPage = 10;
+        if (musicId > 10) {
+            // 如果 id=13 则区间为 10 - 20
+            // id=130 则区间为 100 - 110
+            // id=210 200 - 210
+            String si = String.valueOf(musicId);
+            int keyId = Integer.parseInt(si.substring(0, 1));
+            String repeat = "0".repeat(si.length() - 1);
+
+            minPage = Integer.parseInt(keyId + repeat);
+            maxPage = Integer.parseInt((keyId + 1) + repeat);
+        }
+
+        for (int i = minPage; i < maxPage; i++) {
+            String s = i + ".none";
+            if (i < musicList.size()) {
                 Song song = musicList.get(i);
-                boolean isM = song.getSongName().equalsIgnoreCase(nowSong.getSongName());
-                sj.add((isM ? TextFormat.BOLD + TextFormat.GREEN.toString() : TextFormat.RESET) + song.getSongName());
+                s = i + "." + song.getFormatSongName(getNowSongName());
             }
+            sj.add(s);
         }
 
         // show par
@@ -386,16 +406,4 @@ public class MusicAPI {
         return sj.toString();
     }
 
-    @Override
-    public String toString() {
-        return "MusicAPI{" +
-                "nowSong=" + (nowSong == null ? "none" : nowSong.getSongName()) +
-                ", stopMusic=" + stopMusic +
-                ", musicList=" + musicList.size() +
-                ", volume=" + volume +
-                ", musicTick=" + musicTick +
-                ", musicId=" + musicId +
-                ", playMode=" + playMode +
-                '}';
-    }
 }

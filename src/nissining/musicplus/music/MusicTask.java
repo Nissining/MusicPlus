@@ -1,6 +1,7 @@
 package nissining.musicplus.music;
 
 import nissining.musicplus.MusicPlus;
+import nissining.musicplus.player.MusicPlayer;
 
 public class MusicTask extends Thread {
 
@@ -14,7 +15,7 @@ public class MusicTask extends Thread {
     public void run() {
         while (!m.musicAPI.musicList.isEmpty()) {
             try {
-                m.musicAPI.tryPlay(m.getSongPlayers());
+                m.musicAPI.tryPlay(MusicPlayer.getMps());
                 sleep(15L);
             } catch (InterruptedException e) {
                 e.printStackTrace();
