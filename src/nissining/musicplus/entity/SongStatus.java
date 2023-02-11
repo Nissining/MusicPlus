@@ -43,7 +43,7 @@ public class SongStatus extends EntityLiving {
             tick--;
             if (tick < 1) {
                 tick = 20;
-                setNameTag(MusicPlus.ins.musicAPI.songStat());
+                setNameTag(MusicPlus.ins.musicApi.songStat());
             }
         }
         return onUpdate;

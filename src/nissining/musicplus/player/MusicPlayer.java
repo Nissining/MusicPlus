@@ -5,6 +5,9 @@ import cn.nukkit.Player;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author Nissining
+ **/
 public class MusicPlayer {
 
     private static final List<MusicPlayer> mps = new ArrayList<>();

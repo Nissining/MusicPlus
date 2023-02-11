@@ -33,12 +33,9 @@ import java.util.concurrent.*;
  **/
 public class MusicPlus extends PluginBase implements Listener {
 
-    public static String pluginName = "MusicPlus";
     private Config config;
-    private final ThreadPoolExecutor service = new ThreadPoolExecutor(
-            2, 50, 30L, TimeUnit.SECONDS,
-            new SynchronousQueue<>(), new ThreadPoolExecutor.AbortPolicy());
-    public MusicApi musicAPI;
+    private static final ScheduledThreadPoolExecutor SCHEDULED = new ScheduledThreadPoolExecutor(10);
+    public MusicApi musicApi;
     public List<String> musicWorlds;
 
     public static MusicPlus ins;
@@ -73,10 +70,10 @@ public class MusicPlus extends PluginBase implements Listener {
 
         this.creSongStatus();
 
-        this.musicAPI = new MusicApi();
+        this.musicApi = new MusicApi();
         // 初始化MusicAPI
-        this.musicAPI.loadAllSong(new File(getDataFolder(), "/music"));
-        this.musicAPI.init(config.getInt("play_mode"));
+        this.musicApi.loadAllSong(new File(getDataFolder(), "/music"));
+        this.musicApi.init(config.getInt("play_mode"));
 
         this.startPlay();
 
@@ -96,7 +93,8 @@ public class MusicPlus extends PluginBase implements Listener {
     }
 
     private void startPlay() {
-        service.execute(() -> new MusicTask(this).start());
+        MusicTask musicTask = new MusicTask(this);
+        SCHEDULED.scheduleWithFixedDelay(musicTask, 0, 15, TimeUnit.MILLISECONDS);
     }
 
     private void creSongStatus() {
@@ -182,7 +180,7 @@ public class MusicPlus extends PluginBase implements Listener {
                     // mplus play <page> <0-9>
                     case "play":
                         if (args.length == 2) {
-                            Song song = musicAPI.setNowSongById(Integer.parseInt(args[1]));
+                            Song song = musicApi.setNowSongById(Integer.parseInt(args[1]));
                             if (song == null) {
                                 t = "播放失败！Song不存在！";
                             } else {
@@ -191,22 +189,22 @@ public class MusicPlus extends PluginBase implements Listener {
                         }
                         break;
                     case "next":
-                        if (musicAPI.nextSong()) {
-                            t = "已切换到下一首！ " + musicAPI.getNowSongName();
+                        if (musicApi.nextSong()) {
+                            t = "已切换到下一首！ " + musicApi.getNowSongName();
                         } else {
                             t = "下一首失败！可能是列表顺序播放导致！";
                         }
                         break;
                     case "last":
-                        if (musicAPI.lastSong()) {
-                            t = "已切换到上一首！ " + musicAPI.getNowSongName();
+                        if (musicApi.lastSong()) {
+                            t = "已切换到上一首！ " + musicApi.getNowSongName();
                         } else {
                             t = "上一首失败！可能是列表顺序播放导致！";
                         }
                         break;
                     case "mode":
                         if (args.length == 2) {
-                            t = "播放模式切换为：" + musicAPI.setPlayMode(Integer.parseInt(args[1]));
+                            t = "播放模式切换为：" + musicApi.setPlayMode(Integer.parseInt(args[1]));
                         }
                         break;
                     case "reload":
@@ -214,19 +212,19 @@ public class MusicPlus extends PluginBase implements Listener {
                         t = "config reloaded!";
                         break;
                     case "reloadSong":
-                        musicAPI.loadAllSong(new File(getDataFolder(), "music"));
-                        musicAPI.init(config.getInt("play_mode"));
+                        musicApi.loadAllSong(new File(getDataFolder(), "music"));
+                        musicApi.init(config.getInt("play_mode"));
                         t = "已重载音乐列表！";
                         break;
-                    case "my": // ui
+                    case "my":
                         MusicPlayerMenu.openMenu((Player) se);
                         break;
                     case "add":
-                        musicAPI.addMusicTick((short) 15);
+                        musicApi.addMusicTick((short) 15);
                         t = "快进15s";
                         break;
                     case "addI":
-                        musicAPI.addMusicTick(Short.parseShort(args[1]));
+                        musicApi.addMusicTick(Short.parseShort(args[1]));
                         break;
                 }
             }

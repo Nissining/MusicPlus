@@ -9,6 +9,9 @@ import nissining.musicplus.utils.FormAPI;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * @author Nissining
+ **/
 public class MusicPlayerMenu {
 
     public static List<MpmButton> buttons = new ArrayList<>() {{
@@ -22,16 +25,19 @@ public class MusicPlayerMenu {
         if (mp != null) {
             FormWindowSimple f = new FormWindowSimple("MusicPlus Menu", "个人设置，不影响播放器");
             buttons.forEach(f::addButton);
-            FormAPI formAPI = new FormAPI(player, f) {
+
+            (new FormAPI(player, f) {
                 @Override
                 public void call() {
-                    if (wasClosed())
+                    if (wasClosed()) {
                         return;
+                    }
 
                     switch (getButtonText()) {
                         case "调整音量":
                             volMenu(mp);
                             break;
+                        default:
                         case "播放/停止音乐":
                             mp.stopMusic = !mp.stopMusic;
                             player.sendMessage("音乐： " + (mp.stopMusic ? "停止" : "播放"));
@@ -39,8 +45,7 @@ public class MusicPlayerMenu {
                     }
 
                 }
-            };
-            formAPI.sendToPlayer(player);
+            }).sendToPlayer(player);
         } else {
             t = "打开失败！";
         }
@@ -55,21 +60,20 @@ public class MusicPlayerMenu {
                 "Vol Menu",
                 "音量设置 - 请选择下面的数值\n当前音量： " + mp.getVol());
 
-        for (int i = 0; i <= 100; i += 25) {
-            f.addButton(new ElementButton(i + ""));
+        int maxVol = 100;
+        for (int i = 0; i < maxVol; i++) {
+            f.addButton(new ElementButton(String.valueOf(i)));
         }
-
-        FormAPI formAPI = new FormAPI(mp.getPlayer(), f) {
+        (new FormAPI(mp.getPlayer(), f) {
             @Override
             public void call() {
-                if (wasClosed())
+                if (wasClosed()) {
                     return;
-
+                }
                 mp.setVol(Float.parseFloat(getButtonText()));
                 mp.getPlayer().sendMessage("现在音量为： " + mp.vol);
             }
-        };
-        formAPI.sendToPlayer(mp.getPlayer());
+        }).sendToPlayer(mp.getPlayer());
     }
 
     public static class MpmButton extends ElementButton {
