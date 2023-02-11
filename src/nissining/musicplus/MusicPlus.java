@@ -34,7 +34,7 @@ import java.util.concurrent.*;
 public class MusicPlus extends PluginBase implements Listener {
 
     private Config config;
-    private static final ScheduledThreadPoolExecutor SCHEDULED = new ScheduledThreadPoolExecutor(10);
+    public static final ScheduledThreadPoolExecutor SCHEDULED = new ScheduledThreadPoolExecutor(10);
     public MusicApi musicApi;
     public List<String> musicWorlds;
 
