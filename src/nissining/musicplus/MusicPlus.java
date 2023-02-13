@@ -103,17 +103,10 @@ public class MusicPlus extends PluginBase implements Listener {
         if (pos.isEmpty() || level == null) {
             return;
         }
-
         Position position = new Position(pos.get(0), pos.get(1) + 3, pos.get(2), level);
         CompoundTag nbt = Entity.getDefaultNBT(position);
         SongStatus songStatus = new SongStatus(position.getChunk(), nbt);
         songStatus.spawnToAll();
-    }
-
-
-    @Override
-    public void onDisable() {
-
     }
 
     private static final String[] OPLABEL = new String[]{
