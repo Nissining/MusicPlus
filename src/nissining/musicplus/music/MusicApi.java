@@ -295,7 +295,6 @@ public class MusicApi {
         PageBean<Song> pageBean = new PageBean<>();
         int maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_maxShow");
         int index = (musicList.indexOf(nowSong) / maxShow) + 1;
-        MusicPlus.debug("index:" + index);
         List<Song> queryPager = pageBean.queryPager(index, maxShow, musicList);
         if (queryPager.isEmpty()) {
             return TextFormat.RED + "不存在的页数！";
