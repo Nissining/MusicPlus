@@ -16,7 +16,7 @@ public class MusicPlayerMenu {
 
     public static List<MpmButton> buttons = new ArrayList<>() {{
         add(new MpmButton("调整音量", "items/hopper"));
-        add(new MpmButton("播放/停止音乐", "items/barrier"));
+        add(new MpmButton("播放/停止音乐", "items/slimeball"));
     }};
 
     public static void openMenu(Player player) {
