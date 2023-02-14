@@ -122,6 +122,24 @@ public class MusicPlus extends PluginBase implements Listener {
         return false;
     }
 
+    public static final StringJoiner HELP_LIST = new StringJoiner("\n- ",
+            "--- MusicPlus HelpList ---", "Plugin by Nissining")
+            .add("")
+            .add("/mplus <args> - 主要命令")
+            .add("")
+            .add("-------- args --------")
+            .add("spawn - 创建SongStatus")
+            .add("next - 下一首")
+            .add("last - 上一首")
+            .add("play <id> - 指定播放")
+            .add("mode <1|2|3> - 切换模式(1=列表循环播放 2=列表顺序播放 3=随机播放)")
+            .add("my - 打开个人设置")
+            .add("add - 快进15s")
+            .add("")
+            .add("reload - 热重载配置")
+            .add("reloadSong - 重载音乐列表")
+            .add("----------------------");
+
     @Override
     public boolean onCommand(CommandSender se, Command command, String s, String[] args) {
         String t = "";
@@ -134,26 +152,7 @@ public class MusicPlus extends PluginBase implements Listener {
                 switch (args[0]) {
                     default:
                     case "help":
-                        StringJoiner sj = new StringJoiner("\n- ", "--- MusicPlus HelpList ---", "");
-                        sj.add("")
-                                .add("/mplus <args> - 主要命令")
-                                .add("")
-                                .add("-------- args --------")
-                                .add("spawn - 创建SongStatus")
-                                .add("next - 下一首")
-                                .add("last - 上一首")
-                                .add("play <id> - 指定播放")
-                                .add("mode <1|2|3> - 切换模式(1=列表循环播放 2=列表顺序播放 3=随机播放)")
-                                .add("my - 打开个人设置")
-                                .add("add - 快进15s")
-                                .add("")
-                                .add("reload - 热重载配置")
-                                .add("reloadSong - 重载音乐列表")
-                                .add("----------------------")
-                                .add("Plugin By Nissining!");
-
-                        t = sj.toString();
-
+                        t = HELP_LIST.toString();
                         break;
                     case "spawn":
                         if (se instanceof Player) {
