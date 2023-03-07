@@ -7,7 +7,6 @@ import cn.nukkit.utils.TextFormat;
 import nissining.musicplus.MusicPlus;
 import nissining.musicplus.music.utils.Layer;
 import nissining.musicplus.music.utils.NBSDecoder;
-import nissining.musicplus.music.utils.Note;
 import nissining.musicplus.music.utils.Song;
 import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.utils.MyUtils;
@@ -68,7 +67,7 @@ public class MusicApi {
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        MusicPlus.debug("已加载共计 " + musicList.size() + " 首 Track!");
+        MusicPlus.debug(String.format("已加载共计 %s 首Track!", musicList.size()));
     }
 
     /**
@@ -88,14 +87,13 @@ public class MusicApi {
      * 下一首
      */
     public boolean nextSong() {
-        int index = musicList.indexOf(nowSong);
-        int nextId;
+        var index = musicList.indexOf(nowSong);
+        var nextId = 0;
         if (index >= musicList.size() - 1) {
             // 列表顺序播放
             if (playMode == 0) {
                 return false;
             }
-            nextId = 0;
         } else {
             nextId = index + 1;
         }
@@ -107,12 +105,11 @@ public class MusicApi {
      * 上一首
      */
     public boolean lastSong() {
-        int nextId;
+        var nextId = musicList.size() - 1;
         if (musicId <= 0) {
             if (playMode == 0) {
                 return false;
             }
-            nextId = musicList.size() - 1;
         } else {
             nextId = musicId - 1;
         }
@@ -197,7 +194,7 @@ public class MusicApi {
             return;
         }
 
-        boolean isFinish = musicTick > nowSong.getLength();
+        var isFinish = musicTick > nowSong.getLength();
 
         // 顺序播放
         if (isFinish && musicId >= musicList.size() && playMode == 0) {
@@ -258,12 +255,12 @@ public class MusicApi {
 
     public void playTick(List<MusicPlayer> mps, int tick) {
         for (Layer l : nowSong.getLayerHashMap().values()) {
-            Note note = l.getNote(tick);
+            var note = l.getNote(tick);
             if (note == null) {
                 continue;
             }
-            Sound sound = SOUNDS.getOrDefault((int) note.getInstrument(), null);
-            float fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
+            var sound = SOUNDS.getOrDefault((int) note.getInstrument(), null);
+            var fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
             mps.stream()
                     .filter(mp -> !mp.isStopMusic())
                     .map(MusicPlayer::getPlayer)
@@ -292,32 +289,32 @@ public class MusicApi {
             return TextFormat.RED + "没有正在播放的音乐!";
         }
 
-        PageBean<Song> pageBean = new PageBean<>();
-        int maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_maxShow");
-        int index = (musicList.indexOf(nowSong) / maxShow) + 1;
-        List<Song> queryPager = pageBean.queryPager(index, maxShow, musicList);
+        var pageBean = new PageBean<Song>();
+        var maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_maxShow");
+        var index = (musicList.indexOf(nowSong) / maxShow) + 1;
+        var queryPager = pageBean.queryPager(index, maxShow, musicList);
         if (queryPager.isEmpty()) {
             return TextFormat.RED + "不存在的页数！";
         }
 
-        String title = MusicPlus.ins.getConfig().getString("song_status_title");
-        StringJoiner sj = new StringJoiner("\n", title + "\n", "");
+        var title = MusicPlus.ins.getConfig().getString("song_status_title");
+        var sj = new StringJoiner("\n", title + "\n", "");
         sj.add(index + "/" + pageBean.getTotalPages());
         sj.add(playModeStat[playMode] + "模式");
 
         for (int i = 0; i < maxShow; i++) {
-            String name = "none";
+            var name = "none";
             if (i < queryPager.size()) {
-                Song song = queryPager.get(i);
+                var song = queryPager.get(i);
                 name = song.getFormatSongName(getNowSongName());
             }
             sj.add((i + 1) + "." + name);
         }
 
         // show par
-        String playedTime = MyUtils.getFt(musicTick);
-        String playedMaxTime = MyUtils.getFt(nowSong.getLength());
-        String playedPar = MyUtils.addPar(musicTick, nowSong.getLength(), true);
+        var playedTime = MyUtils.getFt(musicTick);
+        var playedMaxTime = MyUtils.getFt(nowSong.getLength());
+        var playedPar = MyUtils.addPar(musicTick, nowSong.getLength(), true);
 
         sj.add(playedTime + "/" + playedMaxTime + " " + playedPar);
         return sj.toString();

@@ -37,7 +37,7 @@ public class SongStatus extends EntityLiving {
 
     @Override
     public boolean onUpdate(int i) {
-        boolean onUpdate = super.onUpdate(i);
+        var onUpdate = super.onUpdate(i);
         // update song status
         if (tick > 0) {
             tick--;
