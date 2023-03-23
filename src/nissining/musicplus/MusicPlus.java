@@ -14,7 +14,6 @@ import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.plugin.PluginBase;
 import cn.nukkit.utils.Config;
 import cn.nukkit.utils.ConfigSection;
-import cn.nukkit.utils.MainLogger;
 import nissining.musicplus.entity.SongStatus;
 import nissining.musicplus.music.MusicApi;
 import nissining.musicplus.music.MusicTask;
@@ -35,7 +34,7 @@ public class MusicPlus extends PluginBase implements Listener {
 
     private Config config;
     public static final ScheduledThreadPoolExecutor SCHEDULED = new ScheduledThreadPoolExecutor(10);
-    public MusicApi musicApi;
+    public MusicApi musicApi = new MusicApi();
     public List<String> musicWorlds;
 
     public static MusicPlus ins;
@@ -52,13 +51,14 @@ public class MusicPlus extends PluginBase implements Listener {
     @Override
     public void onEnable() {
         if (getDataFolder().mkdirs()) {
-            getLogger().notice("MusicPlus By Nissining");
+            debug("folder created");
         }
-        if (new File(getDataFolder(), "music").mkdirs()) {
-            getLogger().warning("music file");
+        boolean music = new File(getDataFolder(), "music").mkdirs();
+        if (music) {
+            debug("music folder created");
         }
 
-        this.config = new Config(getDataFolder() + "/config.yml", 2, new ConfigSection() {{
+        config = new Config(getDataFolder() + "/config.yml", 2, new ConfigSection() {{
             put("music_worlds", new ArrayList<String>());
             put("song_status_pos", new ArrayList<Double>());
             put("song_status_level", "");
@@ -66,16 +66,24 @@ public class MusicPlus extends PluginBase implements Listener {
             put("song_status_maxShow", 10);
             put("play_mode", 3);
         }});
-        this.musicWorlds = config.getStringList("music_worlds");
+        musicWorlds = config.getStringList("music_worlds");
 
-        this.creSongStatus();
+        creSongStatus();
 
-        this.musicApi = new MusicApi();
-        // 初始化MusicAPI
-        this.musicApi.loadAllSong(new File(getDataFolder(), "/music"));
-        this.musicApi.init(config.getInt("play_mode"));
-
-        this.startPlay();
+        long st = System.currentTimeMillis();
+        debug("正在加载track...");
+        CompletableFuture<Integer> result = CompletableFuture.supplyAsync(() ->
+                musicApi.loadAllSong(new File(getDataFolder(), "music")));
+        try {
+            debug(String.format("track加载完毕！共计%d首track！用时：%dms",
+                    result.get(10, TimeUnit.SECONDS), (System.currentTimeMillis() - st)));
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        result.thenRun(() -> {
+            musicApi.init(config.getInt("play_mode"));
+            startPlay();
+        });
 
         getServer().getPluginManager().registerEvents(this, this);
     }
@@ -84,17 +92,14 @@ public class MusicPlus extends PluginBase implements Listener {
         if (musicWorlds.isEmpty()) {
             return true;
         }
-        for (String musicWorld : musicWorlds) {
-            if (player.level.getFolderName().equalsIgnoreCase(musicWorld)) {
-                return true;
-            }
-        }
-        return false;
+        return musicWorlds.stream().anyMatch(worldName ->
+                player.level.getFolderName().equals(worldName));
     }
 
     private void startPlay() {
         MusicTask musicTask = new MusicTask(this);
         SCHEDULED.scheduleWithFixedDelay(musicTask, 0, 15, TimeUnit.MILLISECONDS);
+        debug("MusicPlus已开始播放 : >");
     }
 
     private void creSongStatus() {
@@ -109,12 +114,12 @@ public class MusicPlus extends PluginBase implements Listener {
         songStatus.spawnToAll();
     }
 
-    private static final String[] OPLABEL = new String[]{
+    private static final String[] OP_LABEL = new String[]{
             "spawn", "next", "last", "play", "mode", "add", "reload", "reloadSong"
     };
 
     private boolean isOpLabel(String label) {
-        for (String s : OPLABEL) {
+        for (String s : OP_LABEL) {
             if (s.equalsIgnoreCase(label)) {
                 return true;
             }
@@ -235,17 +240,19 @@ public class MusicPlus extends PluginBase implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        if (isInMusicWorld(player)) {
-            MusicPlayer.addMusicPlayer(player);
-        }
+        CompletableFuture.runAsync(() -> {
+            if (isInMusicWorld(player)) {
+                MusicPlayer.addMusicPlayer(player);
+            }
+        });
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        MusicPlayer.removeMusicPlayer(event.getPlayer());
+        CompletableFuture.runAsync(() -> MusicPlayer.removeMusicPlayer(event.getPlayer()));
     }
 
     public static void debug(String debug) {
-        MainLogger.getLogger().notice(debug);
+        getInstance().getLogger().notice(debug);
     }
 }

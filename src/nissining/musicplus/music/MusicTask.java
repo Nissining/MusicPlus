@@ -6,7 +6,7 @@ import nissining.musicplus.player.MusicPlayer;
 /**
  * @author Nissining
  **/
-public class MusicTask extends Thread {
+public class MusicTask implements Runnable {
 
     private final MusicPlus m;
 
@@ -17,12 +17,7 @@ public class MusicTask extends Thread {
     @Override
     public void run() {
         if (!m.musicApi.musicList.isEmpty()) {
-            try {
-                m.musicApi.tryPlay(MusicPlayer.getMps());
-                sleep(15L);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            m.musicApi.tryPlay(MusicPlayer.getMps());
         }
     }
 
