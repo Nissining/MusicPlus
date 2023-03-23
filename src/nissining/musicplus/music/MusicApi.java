@@ -50,11 +50,11 @@ public class MusicApi {
         return playModeStat[playMode] + "模式";
     }
 
-    public void loadAllSong(File musicFiles) {
+    public int loadAllSong(File musicFiles) {
         if (musicFiles == null) {
-            return;
+            return 0;
         }
-        File[] files = Objects.requireNonNull(musicFiles.listFiles(),
+        var files = Objects.requireNonNull(musicFiles.listFiles(),
                 "music文件夹不存在！请手动添加！");
         musicList = Arrays.stream(files)
                 .map(file -> {
@@ -67,7 +67,7 @@ public class MusicApi {
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
-        MusicPlus.debug(String.format("已加载共计 %s 首Track!", musicList.size()));
+        return musicList.size();
     }
 
     /**
