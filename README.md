@@ -4,5 +4,5 @@
 - 只支持.nbs格式的文件
 
 ### Plugin Support:
-- Nukkit version: NukkitX, NukkitPM1E, PowerNukkitX
-- MineCraft Version: 1.19.4-Latest
+- Nukkit version: NukkitX, NukkitPM1E, PowerNukkitX, NukkitPM1E-MOT
+- MineCraft Version: 1.18.0-Latest
