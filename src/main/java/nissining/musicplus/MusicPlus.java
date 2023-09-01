@@ -16,7 +16,6 @@ import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.plugin.PluginBase;
 import cn.nukkit.scheduler.AsyncTask;
 import cn.nukkit.utils.Config;
-import cn.nukkit.utils.ConfigSection;
 import nissining.musicplus.entity.SongStatus;
 import nissining.musicplus.music.MusicApi;
 import nissining.musicplus.music.MusicTask;
@@ -61,14 +60,7 @@ public class MusicPlus extends PluginBase implements Listener {
         }
 
         saveResource("config.yml");
-        config = new Config(getDataFolder() + "/config.yml", 2, new ConfigSection() {{
-            put("music_worlds", new ArrayList<String>());
-            put("song_status_pos", new ArrayList<Double>());
-            put("song_status_level", "");
-            put("song_status_title", "--- MusicPlus MusicList ---");
-            put("song_status_maxShow", 10);
-            put("play_mode", 3);
-        }});
+        config = getConfig();
         musicWorlds = config.getStringList("music_worlds");
 
         creSongStatus();

@@ -1,5 +1,6 @@
 package nissining.musicplus.music;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.nukkit.level.Sound;
 import cn.nukkit.network.protocol.PlaySoundPacket;
 
@@ -19,7 +20,6 @@ import java.util.stream.Collectors;
 
 /**
  * @author Nissining
- * @date 2022/9/25 PM 2:45
  **/
 @NoArgsConstructor
 public class MusicApi {
@@ -154,23 +154,15 @@ public class MusicApi {
             MusicPlus.debug("播放列表为空！添加曲目再进行播放！");
             return;
         }
-
         switch (playMode) {
             // 列表循环播放
             // 列表顺序播放
-            case 1:
-            case 0:
-            default:
-                nextSong();
-                break;
+            case 1, 0 -> nextSong();
             // 单曲循环
-            case 2:
-                setNowSongById(this.musicId);
-                break;
+            case 2 -> setNowSongById(this.musicId);
             // 随机播放
-            case 3:
-                randomSong();
-                break;
+            case 3 -> randomSong();
+            default -> nextSong();
         }
     }
 
@@ -209,18 +201,18 @@ public class MusicApi {
         lastPlayed = System.currentTimeMillis();
     }
 
-    public static final HashMap<Integer, Sound> SOUNDS = new HashMap<>() {{
-        put(0, Sound.NOTE_HARP);
-        put(1, Sound.NOTE_BASS);
-        put(2, Sound.NOTE_BD);
-        put(3, Sound.NOTE_SNARE);
-        put(4, Sound.NOTE_HAT);
-        put(5, Sound.NOTE_GUITAR);
-        put(6, Sound.NOTE_FLUTE);
-        put(7, Sound.NOTE_BELL);
-        put(8, Sound.NOTE_CHIME);
-        put(9, Sound.NOTE_XYLOPHONE);
-    }};
+    public static final LinkedList<Sound> SOUNDS = CollUtil.newLinkedList(
+            Sound.NOTE_HARP,
+            Sound.NOTE_BASS,
+            Sound.NOTE_BD,
+            Sound.NOTE_SNARE,
+            Sound.NOTE_HAT,
+            Sound.NOTE_GUITAR,
+            Sound.NOTE_FLUTE,
+            Sound.NOTE_BELL,
+            Sound.NOTE_CHIME,
+            Sound.NOTE_XYLOPHONE
+    );
 
     private static final HashMap<Integer, Float> KEYS = new HashMap<>() {{
         put(0, 0.5f);
@@ -256,15 +248,14 @@ public class MusicApi {
             if (note == null) {
                 continue;
             }
-            var sound = SOUNDS.getOrDefault((int) note.getInstrument(), null);
-            var fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
-            mps.stream()
-                    .filter(mp -> !mp.isStopMusic())
-                    .map(MusicPlayer::getPlayer)
-                    .filter(Objects::nonNull)
-                    .forEach(p -> {
-                        if (sound != null) {
-                            // 播放声音
+            try {
+                var sound = SOUNDS.get(note.getInstrument());
+                var fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
+                mps.stream()
+                        .filter(mp -> !mp.isStopMusic())
+                        .map(MusicPlayer::getPlayer)
+                        .filter(Objects::nonNull)
+                        .forEach(p -> {
                             PlaySoundPacket soundPk = new PlaySoundPacket();
                             soundPk.name = sound.getSound();
                             soundPk.volume = l.getVolume();
@@ -273,8 +264,10 @@ public class MusicApi {
                             soundPk.y = p.getFloorY();
                             soundPk.z = p.getFloorZ();
                             p.dataPacket(soundPk);
-                        }
-                    });
+                        });
+            } catch (NullPointerException ignored) {
+
+            }
         }
     }
 
@@ -287,7 +280,7 @@ public class MusicApi {
         }
 
         var pageBean = new PageBean<Song>();
-        var maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_maxShow");
+        var maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_line");
         var index = (musicList.indexOf(nowSong) / maxShow) + 1;
         var queryPager = pageBean.queryPager(index, maxShow, musicList);
         if (queryPager.isEmpty()) {

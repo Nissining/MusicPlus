@@ -1,8 +1,10 @@
-# 指定播放世界
+# 指定播放世界（填写世界名）
+# 不填写为全局播放
 music_worlds: []
 
 # 播放状态栏位置
 song_status_pos: ""
+song_status_level: "world"
 
 # 播放状态栏标题
 song_status_title: "--- MusicPlus TrackList ---"
@@ -11,5 +13,5 @@ song_status_title: "--- MusicPlus TrackList ---"
 song_status_line: 10
 
 # 播放模式
-# 1=列表循环播放 2=列表顺序播放 3=随机播放
+# 0=列表顺序", 1=列表循环", 2=单曲循环", 3=随机
 play_mode: 3
