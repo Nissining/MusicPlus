@@ -8,25 +8,17 @@ import cn.nukkit.form.response.FormResponseModal;
 import cn.nukkit.form.response.FormResponseSimple;
 import cn.nukkit.form.window.FormWindow;
 import com.google.gson.Gson;
+import lombok.RequiredArgsConstructor;
 
 import java.util.HashMap;
 
-/**
- * FormAPI By anseEND
- */
-
+@RequiredArgsConstructor
 public abstract class FormAPI extends FormWindow {
 
     private boolean closed = false;
-
-    public Player player;
-    private FormWindow window;
+    public final Player player;
+    private final FormWindow window;
     private HashMap<Integer, Object> hashMap = new HashMap<>();
-
-    public FormAPI(Player player, FormWindow window) {
-        this.player = player;
-        this.window = window;
-    }
 
     public void setHashMap(HashMap<Integer, Object> hashMap) {
         this.hashMap = hashMap;

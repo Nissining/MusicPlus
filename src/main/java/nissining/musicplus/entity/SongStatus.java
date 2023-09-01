@@ -12,6 +12,7 @@ import nissining.musicplus.MusicPlus;
 public class SongStatus extends EntityLiving {
 
     private int tick = 20;
+    public boolean invalidClose = false;
 
     public SongStatus(FullChunk fullChunk, CompoundTag compoundTag) {
         super(fullChunk, compoundTag);
@@ -33,6 +34,13 @@ public class SongStatus extends EntityLiving {
     @Override
     public void saveNBT() {
 
+    }
+
+    @Override
+    public void close() {
+        if (invalidClose) {
+            super.close();
+        }
     }
 
     @Override

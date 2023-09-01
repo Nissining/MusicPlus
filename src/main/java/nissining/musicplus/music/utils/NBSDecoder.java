@@ -1,5 +1,7 @@
 package nissining.musicplus.music.utils;
 
+import nissining.musicplus.MusicPlus;
+
 import java.io.*;
 import java.util.HashMap;
 
@@ -62,7 +64,7 @@ public class NBSDecoder {
             }
             return new Song(speed, layerHashMap, songHeight, length, title, author, description, decodeFile);
         } catch (IOException e) {
-            e.printStackTrace();
+            MusicPlus.debug(decodeFile.getName() + "解析错误！请打开 Minecraft Note Block 另存为classic再重新加载！");
         }
         return null;
     }

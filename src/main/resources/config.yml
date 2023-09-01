@@ -1,0 +1,15 @@
+# 指定播放世界
+music_worlds: []
+
+# 播放状态栏位置
+song_status_pos: ""
+
+# 播放状态栏标题
+song_status_title: "--- MusicPlus TrackList ---"
+
+# 播放状态栏Track显示行数
+song_status_line: 10
+
+# 播放模式
+# 1=列表循环播放 2=列表顺序播放 3=随机播放
+play_mode: 3

@@ -1,5 +1,7 @@
 package nissining.musicplus;
 
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.date.DateUtil;
 import cn.nukkit.Player;
 import cn.nukkit.command.Command;
 import cn.nukkit.command.CommandSender;
@@ -12,19 +14,19 @@ import cn.nukkit.level.Level;
 import cn.nukkit.level.Position;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.plugin.PluginBase;
+import cn.nukkit.scheduler.AsyncTask;
 import cn.nukkit.utils.Config;
 import cn.nukkit.utils.ConfigSection;
 import nissining.musicplus.entity.SongStatus;
 import nissining.musicplus.music.MusicApi;
 import nissining.musicplus.music.MusicTask;
-import nissining.musicplus.music.utils.Song;
 import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.player.MusicPlayerMenu;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
+import java.util.Objects;
 import java.util.concurrent.*;
 
 /**
@@ -58,6 +60,7 @@ public class MusicPlus extends PluginBase implements Listener {
             debug("music folder created");
         }
 
+        saveResource("config.yml");
         config = new Config(getDataFolder() + "/config.yml", 2, new ConfigSection() {{
             put("music_worlds", new ArrayList<String>());
             put("song_status_pos", new ArrayList<Double>());
@@ -70,21 +73,17 @@ public class MusicPlus extends PluginBase implements Listener {
 
         creSongStatus();
 
-        long st = System.currentTimeMillis();
         debug("正在加载track...");
-        CompletableFuture<Integer> result = CompletableFuture.supplyAsync(() ->
-                musicApi.loadAllSong(new File(getDataFolder(), "music")));
-        try {
-            debug(String.format("track加载完毕！共计%d首track！用时：%dms",
-                    result.get(10, TimeUnit.SECONDS), (System.currentTimeMillis() - st)));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        result.thenRun(() -> {
-            musicApi.init(config.getInt("play_mode"));
-            startPlay();
+        var timer = DateUtil.timer();
+        getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
+            @Override
+            public void onRun() {
+                var i = musicApi.loadAllSong(new File(getDataFolder(), "music"));
+                debug(String.format("track加载完毕！共计%d首track！用时：%dms", i, timer.interval()));
+                musicApi.init(config.getInt("play_mode"));
+                startPlay();
+            }
         });
-
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -99,7 +98,7 @@ public class MusicPlus extends PluginBase implements Listener {
     private void startPlay() {
         MusicTask musicTask = new MusicTask(this);
         SCHEDULED.scheduleWithFixedDelay(musicTask, 0, 15, TimeUnit.MILLISECONDS);
-        debug("MusicPlus已开始播放 : >");
+        debug("MusicPlus已开始播放 :-)");
     }
 
     private void creSongStatus() {
@@ -119,31 +118,29 @@ public class MusicPlus extends PluginBase implements Listener {
     };
 
     private boolean isOpLabel(String label) {
-        for (String s : OP_LABEL) {
-            if (s.equalsIgnoreCase(label)) {
-                return true;
-            }
-        }
-        return false;
+        return List.of(OP_LABEL).contains(label);
     }
 
-    public static final StringJoiner HELP_LIST = new StringJoiner("\n- ",
-            "--- MusicPlus HelpList ---", "Plugin by Nissining")
-            .add("")
-            .add("/mplus <args> - 主要命令")
-            .add("")
-            .add("-------- args --------")
-            .add("spawn - 创建SongStatus")
-            .add("next - 下一首")
-            .add("last - 上一首")
-            .add("play <id> - 指定播放")
-            .add("mode <1|2|3> - 切换模式(1=列表循环播放 2=列表顺序播放 3=随机播放)")
-            .add("my - 打开个人设置")
-            .add("add - 快进15s")
-            .add("")
-            .add("reload - 热重载配置")
-            .add("reloadSong - 重载音乐列表")
-            .add("----------------------");
+    public static final ArrayList<String> HELP_LIST = CollUtil.newArrayList(
+            "--- MusicPlus 帮助列表 ---",
+            "/mplus <args> - 主指令",
+            " ",
+            "args:",
+            "  spawn - 创建播放状态栏",
+            "  next - 切换下一首",
+            "  last - 切换上一首",
+            "  play <id> - 播放指定Track",
+            "  play <id> - 播放指定Track",
+            "  play <id> - 播放指定Track",
+            "  mode <1|2|3> - 切换模式(1=列表循环播放 2=列表顺序播放 3=随机播放)",
+            "  my - 打开个人设置",
+            "  add - 快进15s",
+            "  reload - 热重载配置",
+            "  reloadSong - 重载音乐列表",
+            "  clear - 清除当前世界所有播放状态栏",
+            " ",
+            "Plugin by Nissining"
+    );
 
     @Override
     public boolean onCommand(CommandSender se, Command command, String s, String[] args) {
@@ -155,14 +152,10 @@ public class MusicPlus extends PluginBase implements Listener {
 
             } else {
                 switch (args[0]) {
-                    default:
-                    case "help":
-                        t = HELP_LIST.toString();
-                        break;
-                    case "spawn":
-                        if (se instanceof Player) {
-                            Player p = (Player) se;
-                            List<Double> pos = new ArrayList<>() {{
+                    case "help" -> t = String.join("\n", HELP_LIST);
+                    case "spawn" -> {
+                        if (se instanceof Player p) {
+                            var pos = new ArrayList<>() {{
                                 add(p.getX());
                                 add(p.getY());
                                 add(p.getZ());
@@ -173,56 +166,57 @@ public class MusicPlus extends PluginBase implements Listener {
                             creSongStatus();
                             t = "Song status created and saved!";
                         }
-                        break;
+                    }
                     // mplus play <page> <0-9>
-                    case "play":
+                    case "play" -> {
                         if (args.length == 2) {
-                            Song song = musicApi.setNowSongById(Integer.parseInt(args[1]));
+                            var song = musicApi.setNowSongById(Integer.parseInt(args[1]));
                             if (song == null) {
                                 t = "播放失败！Song不存在！";
                             } else {
                                 t = "已切换为Song: " + song.getSongName();
                             }
                         }
-                        break;
-                    case "next":
+                    }
+                    case "next" -> {
                         if (musicApi.nextSong()) {
                             t = "已切换到下一首！ " + musicApi.getNowSongName();
                         } else {
                             t = "下一首失败！可能是列表顺序播放导致！";
                         }
-                        break;
-                    case "last":
+                    }
+                    case "last" -> {
                         if (musicApi.lastSong()) {
                             t = "已切换到上一首！ " + musicApi.getNowSongName();
                         } else {
                             t = "上一首失败！可能是列表顺序播放导致！";
                         }
-                        break;
-                    case "mode":
+                    }
+                    case "mode" -> {
                         if (args.length == 2) {
                             t = "播放模式切换为：" + musicApi.setPlayMode(Integer.parseInt(args[1]));
                         }
-                        break;
-                    case "reload":
+                    }
+                    case "reload" -> {
                         this.config = new Config(getDataFolder() + "/config.yml", 2);
                         t = "config reloaded!";
-                        break;
-                    case "reloadSong":
+                    }
+                    case "reloadSong" -> {
                         musicApi.loadAllSong(new File(getDataFolder(), "music"));
                         musicApi.init(config.getInt("play_mode"));
                         t = "已重载音乐列表！";
-                        break;
-                    case "my":
-                        MusicPlayerMenu.openMenu((Player) se);
-                        break;
-                    case "add":
+                    }
+                    case "my" -> MusicPlayerMenu.openMenu((Player) se);
+                    case "add" -> {
                         musicApi.addMusicTick((short) 15);
                         t = "快进15s";
-                        break;
-                    case "addI":
-                        musicApi.addMusicTick(Short.parseShort(args[1]));
-                        break;
+                    }
+                    case "addI" -> musicApi.addMusicTick(Short.parseShort(args[1]));
+                    case "clear" -> {
+                        if (se instanceof Player p) {
+                            clearSongStatus(p.getLevel());
+                        }
+                    }
                 }
             }
 
@@ -237,19 +231,37 @@ public class MusicPlus extends PluginBase implements Listener {
         return true;
     }
 
+    private void clearSongStatus(Level level) {
+        Objects.requireNonNull(level);
+        for (Entity entity : level.getEntities()) {
+            if (entity instanceof SongStatus songStatus) {
+                songStatus.invalidClose = true;
+                songStatus.close();
+            }
+        }
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        CompletableFuture.runAsync(() -> {
-            if (isInMusicWorld(player)) {
-                MusicPlayer.addMusicPlayer(player);
+        getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
+            @Override
+            public void onRun() {
+                if (isInMusicWorld(player)) {
+                    MusicPlayer.addMusicPlayer(player);
+                }
             }
         });
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        CompletableFuture.runAsync(() -> MusicPlayer.removeMusicPlayer(event.getPlayer()));
+        getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
+            @Override
+            public void onRun() {
+                MusicPlayer.removeMusicPlayer(event.getPlayer());
+            }
+        });
     }
 
     public static void debug(String debug) {

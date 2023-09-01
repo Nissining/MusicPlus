@@ -4,6 +4,7 @@ import cn.nukkit.level.Sound;
 import cn.nukkit.network.protocol.PlaySoundPacket;
 
 import cn.nukkit.utils.TextFormat;
+import lombok.NoArgsConstructor;
 import nissining.musicplus.MusicPlus;
 import nissining.musicplus.music.utils.Layer;
 import nissining.musicplus.music.utils.NBSDecoder;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
  * @author Nissining
  * @date 2022/9/25 PM 2:45
  **/
+@NoArgsConstructor
 public class MusicApi {
 
     public Song nowSong = null;
@@ -33,9 +35,6 @@ public class MusicApi {
     public static String[] playModeStat = new String[]{
             "列表顺序", "列表循环", "单曲循环", "随机"
     };
-
-    public MusicApi() {
-    }
 
     public String getNowSongName() {
         return nowSong.getSongName();
@@ -51,22 +50,20 @@ public class MusicApi {
     }
 
     public int loadAllSong(File musicFiles) {
-        if (musicFiles == null) {
-            return 0;
+        var files = musicFiles.listFiles();
+        if (files != null) {
+            musicList = Arrays.stream(files)
+                    .map(file -> {
+                        String fn = file.getName().trim();
+                        boolean isTrack = !file.isDirectory() && fn.endsWith(".nbs");
+                        if (isTrack) {
+                            return NBSDecoder.parse(file);
+                        }
+                        return null;
+                    })
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toList());
         }
-        var files = Objects.requireNonNull(musicFiles.listFiles(),
-                "music文件夹不存在！请手动添加！");
-        musicList = Arrays.stream(files)
-                .map(file -> {
-                    String fn = file.getName().trim();
-                    boolean isTrack = !file.isDirectory() && fn.endsWith(".nbs");
-                    if (isTrack) {
-                        return NBSDecoder.parse(file);
-                    }
-                    return null;
-                })
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
         return musicList.size();
     }
 
