@@ -3,14 +3,13 @@ package nissining.musicplus.player;
 import cn.nukkit.Player;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * @author Nissining
  **/
 public class MusicPlayer {
 
-    private static final List<MusicPlayer> mps = new ArrayList<>();
+    private static final ArrayList<MusicPlayer> mps = new ArrayList<>();
 
     public static MusicPlayer getMusicPlayer(String p) {
         return mps.stream()
@@ -26,13 +25,10 @@ public class MusicPlayer {
     }
 
     public static void removeMusicPlayer(Player player) {
-        MusicPlayer mp;
-        if ((mp = getMusicPlayer(player.getName())) != null) {
-            mps.remove(mp);
-        }
+        mps.removeIf(mp -> player.equals(mp.getPlayer()));
     }
 
-    public static List<MusicPlayer> getMps() {
+    public static ArrayList<MusicPlayer> getMps() {
         return mps;
     }
 

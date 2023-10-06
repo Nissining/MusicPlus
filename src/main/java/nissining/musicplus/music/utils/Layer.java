@@ -1,40 +1,16 @@
 package nissining.musicplus.music.utils;
 
+import lombok.Data;
+import lombok.experimental.Accessors;
+
 import java.util.HashMap;
 
+@Data
+@Accessors(chain = true)
 public class Layer {
-
     private HashMap<Integer, Note> hashMap = new HashMap<>();
     private byte volume = 100;
     private String name = "";
-
-    public HashMap<Integer, Note> getHashMap() {
-        return hashMap;
-    }
-
-    public void setHashMap(HashMap<Integer, Note> hashMap) {
-        this.hashMap = hashMap;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public Note getNote(int tick) {
-        return hashMap.get(tick);
-    }
-
-    public void setNote(int tick, Note note) {
-        hashMap.put(tick, note);
-    }
-
-    public byte getVolume() {
-        return volume;
-    }
 
     public void setVolume(byte volume) {
         if (this.volume != volume) {
@@ -42,4 +18,11 @@ public class Layer {
         }
     }
 
+    public void setNote(int ticks, Note note) {
+        this.hashMap.put(ticks, note);
+    }
+
+    public Note getNote(int tick) {
+        return this.hashMap.get(tick);
+    }
 }

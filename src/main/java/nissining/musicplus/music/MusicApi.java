@@ -1,11 +1,11 @@
 package nissining.musicplus.music;
 
-import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.nukkit.level.Sound;
 import cn.nukkit.network.protocol.PlaySoundPacket;
 
 import cn.nukkit.utils.TextFormat;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import nissining.musicplus.MusicPlus;
 import nissining.musicplus.music.utils.Layer;
 import nissining.musicplus.music.utils.NBSDecoder;
@@ -22,48 +22,54 @@ import java.util.stream.Collectors;
  * @author Nissining
  **/
 @NoArgsConstructor
+@Data
 public class MusicApi {
 
     public Song nowSong = null;
     public short musicTick = -1;
     public long lastPlayed = 0;
     public int musicId = 0;
-    public int playMode = 0;
 
-    public List<Song> musicList = new ArrayList<>();
+    @AllArgsConstructor
+    @Getter
+    public enum PlayMode {
+        LIST_PLAY("列表顺序"),
+        LIST_LOOP("列表循环"),
+        SINGLE_LOOP("单曲循环"),
+        RANDOM("随机"),
+        ;
+        private final String modeName;
+    }
 
-    public static String[] playModeStat = new String[]{
-            "列表顺序", "列表循环", "单曲循环", "随机"
-    };
+    public PlayMode playMode = PlayMode.LIST_LOOP;
+    /**
+     * 已加载的tracks
+     */
+    public ArrayList<Song> musicList = new ArrayList<>();
 
     public String getNowSongName() {
         return nowSong.getSongName();
     }
 
-    public String setPlayMode(int playMode) {
-        this.playMode = playMode;
-        return getPlayMode();
-    }
-
-    public String getPlayMode() {
-        return playModeStat[playMode] + "模式";
-    }
-
     public int loadAllSong(File musicFiles) {
-        var files = musicFiles.listFiles();
-        if (files != null) {
-            musicList = Arrays.stream(files)
-                    .map(file -> {
-                        String fn = file.getName().trim();
-                        boolean isTrack = !file.isDirectory() && fn.endsWith(".nbs");
-                        if (isTrack) {
-                            return NBSDecoder.parse(file);
-                        }
-                        return null;
-                    })
-                    .filter(Objects::nonNull)
-                    .collect(Collectors.toList());
+        if (!musicFiles.exists()) {
+            return 0;
         }
+        var files = musicFiles.listFiles();
+        if (files == null || files.length == 0) {
+            return 0;
+        }
+        musicList = Arrays.stream(files)
+                .map(file -> {
+                    String fn = file.getName().trim();
+                    boolean isTrack = !file.isDirectory() && fn.endsWith(".nbs");
+                    if (isTrack) {
+                        return NBSDecoder.parse(file);
+                    }
+                    return null;
+                })
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(ArrayList::new));
         return musicList.size();
     }
 
@@ -72,9 +78,8 @@ public class MusicApi {
      *
      * @param mode 0:列表顺序 1:列表循环 2:单曲循环 3:随机
      */
-    public void init(int mode) {
-        this.playMode = mode;
-
+    public void init(PlayMode mode) {
+        setPlayMode(mode);
         if (this.nowSong == null) {
             this.nextSongByMode();
         }
@@ -88,7 +93,7 @@ public class MusicApi {
         var nextId = 0;
         if (index >= musicList.size() - 1) {
             // 列表顺序播放
-            if (playMode == 0) {
+            if (getPlayMode().equals(PlayMode.LIST_PLAY)) {
                 return false;
             }
         } else {
@@ -104,7 +109,7 @@ public class MusicApi {
     public boolean lastSong() {
         var nextId = musicList.size() - 1;
         if (musicId <= 0) {
-            if (playMode == 0) {
+            if (getPlayMode().equals(PlayMode.LIST_PLAY)) {
                 return false;
             }
         } else {
@@ -131,13 +136,16 @@ public class MusicApi {
             return null;
         }
         if (id > musicList.size() - 1) {
-            MusicPlus.debug("超出范围！ID:" + id);
+            MusicPlus.debug("超出范围！ID: {}", id);
             return null;
         }
         resetSong();
-        musicId = id;
-        nowSong = musicList.get(id);
-        return nowSong;
+        setMusicId(id);
+        setNowSong(musicList.get(id));
+        MusicPlus.debug("现在播放的是: {} BPM: {}",
+                nowSong.getSongName(),
+                nowSong.getSpeed());
+        return getNowSong();
     }
 
     public void resetSong() {
@@ -154,20 +162,11 @@ public class MusicApi {
             MusicPlus.debug("播放列表为空！添加曲目再进行播放！");
             return;
         }
-        switch (playMode) {
-            // 列表循环播放
-            // 列表顺序播放
-            case 1, 0 -> nextSong();
-            // 单曲循环
-            case 2 -> setNowSongById(this.musicId);
-            // 随机播放
-            case 3 -> randomSong();
+        switch (getPlayMode()) {
+            case SINGLE_LOOP -> setNowSongById(getMusicId());
+            case RANDOM -> randomSong();
             default -> nextSong();
         }
-    }
-
-    public void setMusicTick(short i) {
-        this.musicTick = i;
     }
 
     public void addMusicTick(short i) {
@@ -178,20 +177,17 @@ public class MusicApi {
         if (nowSong == null) {
             return;
         }
-
         if (System.currentTimeMillis() - lastPlayed < 50 * nowSong.getDelay()) {
             return;
         }
-
         var isFinish = musicTick > nowSong.getLength();
-
-        // 顺序播放
-        if (isFinish && musicId >= musicList.size() && playMode == 0) {
+        // 如果是顺序播放并已播放完列表所有track
+        // 停止播放
+        if (isFinish && musicId >= musicList.size() && getPlayMode().equals(PlayMode.LIST_PLAY)) {
             resetSong();
             MusicPlus.debug("播放失败！原因： 模式是顺序播放！已播放完毕");
             return;
         }
-
         musicTick++;
         if (isFinish) {
             nextSongByMode();
@@ -201,18 +197,18 @@ public class MusicApi {
         lastPlayed = System.currentTimeMillis();
     }
 
-    public static final LinkedList<Sound> SOUNDS = CollUtil.newLinkedList(
-            Sound.NOTE_HARP,
-            Sound.NOTE_BASS,
-            Sound.NOTE_BD,
-            Sound.NOTE_SNARE,
-            Sound.NOTE_HAT,
-            Sound.NOTE_GUITAR,
-            Sound.NOTE_FLUTE,
-            Sound.NOTE_BELL,
-            Sound.NOTE_CHIME,
-            Sound.NOTE_XYLOPHONE
-    );
+    public static final HashMap<Integer, Sound> SOUNDS = new HashMap<>() {{
+        put(0, Sound.NOTE_HARP);
+        put(1, Sound.NOTE_BASS);
+        put(2, Sound.NOTE_BD);
+        put(3, Sound.NOTE_SNARE);
+        put(4, Sound.NOTE_HAT);
+        put(5, Sound.NOTE_GUITAR);
+        put(6, Sound.NOTE_FLUTE);
+        put(7, Sound.NOTE_BELL);
+        put(8, Sound.NOTE_CHIME);
+        put(9, Sound.NOTE_XYLOPHONE);
+    }};
 
     private static final HashMap<Integer, Float> KEYS = new HashMap<>() {{
         put(0, 0.5f);
@@ -248,15 +244,16 @@ public class MusicApi {
             if (note == null) {
                 continue;
             }
-            try {
-                var sound = SOUNDS.get(note.getInstrument());
-                var fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
-                mps.stream()
-                        .filter(mp -> !mp.isStopMusic())
-                        .map(MusicPlayer::getPlayer)
-                        .filter(Objects::nonNull)
-                        .forEach(p -> {
-                            PlaySoundPacket soundPk = new PlaySoundPacket();
+            var sound = SOUNDS.getOrDefault((int) note.getInstrument(), null);
+            var fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
+            mps.stream()
+                    .filter(mp -> !mp.isStopMusic())
+                    .map(MusicPlayer::getPlayer)
+                    .filter(Objects::nonNull)
+                    .forEach(p -> {
+                        if (sound != null) {
+                            // 播放声音
+                            var soundPk = new PlaySoundPacket();
                             soundPk.name = sound.getSound();
                             soundPk.volume = l.getVolume();
                             soundPk.pitch = fl;
@@ -264,10 +261,8 @@ public class MusicApi {
                             soundPk.y = p.getFloorY();
                             soundPk.z = p.getFloorZ();
                             p.dataPacket(soundPk);
-                        });
-            } catch (NullPointerException ignored) {
-
-            }
+                        }
+                    });
         }
     }
 
@@ -280,7 +275,7 @@ public class MusicApi {
         }
 
         var pageBean = new PageBean<Song>();
-        var maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_line");
+        var maxShow = MusicPlus.getInstance().getConfig().getInt("song_status_maxShow");
         var index = (musicList.indexOf(nowSong) / maxShow) + 1;
         var queryPager = pageBean.queryPager(index, maxShow, musicList);
         if (queryPager.isEmpty()) {
@@ -289,23 +284,26 @@ public class MusicApi {
 
         var title = MusicPlus.ins.getConfig().getString("song_status_title");
         var sj = new StringJoiner("\n", title + "\n", "");
-        sj.add(index + "/" + pageBean.getTotalPages());
-        sj.add(playModeStat[playMode] + "模式");
+        sj.add(" ");
 
         for (int i = 0; i < maxShow; i++) {
-            var name = "none";
+            var songName = "&7" + (i + 1) + ".none";
             if (i < queryPager.size()) {
-                var song = queryPager.get(i);
-                name = song.getFormatSongName(getNowSongName());
+                songName = getNowSong().getFormatSongName(i, queryPager.get(i));
             }
-            sj.add((i + 1) + "." + name);
+            sj.add(TextFormat.colorize(songName));
         }
 
         // show par
-        var playedTime = MyUtils.getFt(musicTick);
-        var playedMaxTime = MyUtils.getFt(nowSong.getLength());
+        var playedTime = MyUtils.getFt((int) (musicTick / getNowSong().getSpeed()));
+        var playedMaxTime = MyUtils.getFt((int) (nowSong.getLength() / getNowSong().getSpeed()));
         var playedPar = MyUtils.addPar(musicTick, nowSong.getLength(), true);
 
+        sj.add(" ");
+        sj.add(StrUtil.format("当前模式: {} | 页数: {}/{}",
+                getPlayMode().getModeName(),
+                index,
+                pageBean.getTotalPages()));
         sj.add(playedTime + "/" + playedMaxTime + " " + playedPar);
         return sj.toString();
     }
