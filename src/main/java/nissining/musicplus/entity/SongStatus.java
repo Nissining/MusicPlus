@@ -1,17 +1,17 @@
 package nissining.musicplus.entity;
 
 import cn.nukkit.entity.EntityLiving;
-import cn.nukkit.entity.projectile.EntitySnowball;
+import cn.nukkit.entity.projectile.EntityEgg;
 import cn.nukkit.level.format.FullChunk;
 import cn.nukkit.nbt.tag.CompoundTag;
+import cn.nukkit.scheduler.Task;
 import nissining.musicplus.MusicPlus;
 
 /**
  * @author Nissining
  **/
 public class SongStatus extends EntityLiving {
-
-    private int tick = 20;
+    public boolean canClose = false;
 
     public SongStatus(FullChunk fullChunk, CompoundTag compoundTag) {
         super(fullChunk, compoundTag);
@@ -19,15 +19,25 @@ public class SongStatus extends EntityLiving {
 
     @Override
     public int getNetworkId() {
-        return EntitySnowball.NETWORK_ID;
+        return EntityEgg.NETWORK_ID;
     }
 
     @Override
     protected void initEntity() {
         super.initEntity();
-        setScale(0.001f);
+        setScale(0.00001f);
         setNameTagVisible();
         setNameTagAlwaysVisible();
+        getServer().getScheduler().scheduleRepeatingTask(new Task() {
+            @Override
+            public void onRun(int i) {
+                if (isClosed()) {
+                    this.cancel();
+                } else {
+                    setNameTag(MusicPlus.ins.musicApi.songStat());
+                }
+            }
+        },20);
     }
 
     @Override
@@ -36,17 +46,9 @@ public class SongStatus extends EntityLiving {
     }
 
     @Override
-    public boolean onUpdate(int i) {
-        var onUpdate = super.onUpdate(i);
-        // update song status
-        if (tick > 0) {
-            tick--;
-            if (tick < 1) {
-                tick = 20;
-                setNameTag(MusicPlus.ins.musicApi.songStat());
-            }
+    public void close() {
+        if (canClose) {
+            super.close();
         }
-        return onUpdate;
     }
-
 }

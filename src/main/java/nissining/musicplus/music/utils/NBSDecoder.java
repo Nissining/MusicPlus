@@ -48,16 +48,13 @@ public class NBSDecoder {
                         break;
                     }
                     layer += jumpLayers;
-
-
                     setNote(layer, tick, dis.readByte(), dis.readByte(), layerHashMap);
                 }
             }
             for (int i = 0; i < songHeight; i++) {
                 Layer l = layerHashMap.get(i);
                 if (l != null) {
-                    l.setName(readString(dis));
-                    l.setVolume(dis.readByte());
+                    l.setName(readString(dis)).setVolume(dis.readByte());
                 }
             }
             return new Song(speed, layerHashMap, songHeight, length, title, author, description, decodeFile);
@@ -68,11 +65,8 @@ public class NBSDecoder {
     }
 
     private static void setNote(int layer, int ticks, byte instrument, byte key, HashMap<Integer, Layer> layerHashMap) {
-        Layer l = layerHashMap.get(layer);
-        if (l == null) {
-            l = new Layer();
-            layerHashMap.put(layer, l);
-        }
+        Layer l = layerHashMap.getOrDefault(layer, new Layer());
+        layerHashMap.put(layer, l);
         l.setNote(ticks, new Note(instrument, key));
     }
 

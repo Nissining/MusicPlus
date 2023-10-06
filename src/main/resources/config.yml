@@ -1,0 +1,14 @@
+# 指定播放世界
+# 不填写默认全局播放
+music_worlds: []
+# 浮空字播放器坐标
+song_status_pos: []
+# 浮空字播放器世界
+song_status_level: ""
+# 浮空字播放器标题
+song_status_title: "--- MusicPlus TrackList ---"
+# 浮空字能显示最大行数
+song_status_maxShow: 10
+# 播放模式
+# 0=列表顺序播放 1=列表循环播放 2=单曲循环播放 3=随机播放
+play_mode: 1

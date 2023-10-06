@@ -1,5 +1,8 @@
 package nissining.musicplus;
 
+import cn.hutool.core.date.DateUtil;
+import cn.hutool.core.thread.ThreadUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.nukkit.Player;
 import cn.nukkit.command.Command;
 import cn.nukkit.command.CommandSender;
@@ -12,11 +15,10 @@ import cn.nukkit.level.Level;
 import cn.nukkit.level.Position;
 import cn.nukkit.nbt.tag.CompoundTag;
 import cn.nukkit.plugin.PluginBase;
+import cn.nukkit.scheduler.AsyncTask;
 import cn.nukkit.utils.Config;
-import cn.nukkit.utils.ConfigSection;
 import nissining.musicplus.entity.SongStatus;
 import nissining.musicplus.music.MusicApi;
-import nissining.musicplus.music.MusicTask;
 import nissining.musicplus.music.utils.Song;
 import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.player.MusicPlayerMenu;
@@ -25,7 +27,6 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
-import java.util.concurrent.*;
 
 /**
  * @author Nissining
@@ -33,12 +34,10 @@ import java.util.concurrent.*;
 public class MusicPlus extends PluginBase implements Listener {
 
     private Config config;
-    public static final ScheduledThreadPoolExecutor SCHEDULED = new ScheduledThreadPoolExecutor(10);
     public MusicApi musicApi = new MusicApi();
-    public List<String> musicWorlds;
+    public ArrayList<String> musicWorlds;
 
     public static MusicPlus ins;
-
     public static MusicPlus getInstance() {
         return ins;
     }
@@ -58,33 +57,24 @@ public class MusicPlus extends PluginBase implements Listener {
             debug("music folder created");
         }
 
-        config = new Config(getDataFolder() + "/config.yml", 2, new ConfigSection() {{
-            put("music_worlds", new ArrayList<String>());
-            put("song_status_pos", new ArrayList<Double>());
-            put("song_status_level", "");
-            put("song_status_title", "--- MusicPlus MusicList ---");
-            put("song_status_maxShow", 10);
-            put("play_mode", 3);
-        }});
-        musicWorlds = config.getStringList("music_worlds");
-
+        saveResource("config.yml");
+        config = getConfig();
+        musicWorlds = new ArrayList<>(config.getStringList("music_worlds"));
         creSongStatus();
-
-        long st = System.currentTimeMillis();
+        var timer = DateUtil.timer();
         debug("正在加载track...");
-        CompletableFuture<Integer> result = CompletableFuture.supplyAsync(() ->
-                musicApi.loadAllSong(new File(getDataFolder(), "music")));
-        try {
-            debug(String.format("track加载完毕！共计%d首track！用时：%dms",
-                    result.get(10, TimeUnit.SECONDS), (System.currentTimeMillis() - st)));
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        result.thenRun(() -> {
-            musicApi.init(config.getInt("play_mode"));
-            startPlay();
+        getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
+            @Override
+            public void onRun() {
+                var i = musicApi.loadAllSong(new File(getDataFolder(), "music"));
+                musicApi.init(MusicApi.PlayMode.values()[config.getInt("play_mode")]);
+                while (!isDisabled()) {
+                    ThreadUtil.sleep(musicApi.getNowSong().getDelay());
+                    musicApi.tryPlay(MusicPlayer.getMps());
+                }
+                debug(StrUtil.format("已加载{}首Track！用时：{}ms", i, timer.interval()));
+            }
         });
-
         getServer().getPluginManager().registerEvents(this, this);
     }
 
@@ -92,14 +82,7 @@ public class MusicPlus extends PluginBase implements Listener {
         if (musicWorlds.isEmpty()) {
             return true;
         }
-        return musicWorlds.stream().anyMatch(worldName ->
-                player.level.getFolderName().equals(worldName));
-    }
-
-    private void startPlay() {
-        MusicTask musicTask = new MusicTask(this);
-        SCHEDULED.scheduleWithFixedDelay(musicTask, 0, 15, TimeUnit.MILLISECONDS);
-        debug("MusicPlus已开始播放 : >");
+        return musicWorlds.contains(player.getLevelName());
     }
 
     private void creSongStatus() {
@@ -119,12 +102,7 @@ public class MusicPlus extends PluginBase implements Listener {
     };
 
     private boolean isOpLabel(String label) {
-        for (String s : OP_LABEL) {
-            if (s.equalsIgnoreCase(label)) {
-                return true;
-            }
-        }
-        return false;
+        return List.of(OP_LABEL).contains(label);
     }
 
     public static final StringJoiner HELP_LIST = new StringJoiner("\n- ",
@@ -133,7 +111,7 @@ public class MusicPlus extends PluginBase implements Listener {
             .add("/mplus <args> - 主要命令")
             .add("")
             .add("-------- args --------")
-            .add("spawn - 创建SongStatus")
+            .add("spawn - 在脚下创建SongStatus（高度默认为：3）")
             .add("next - 下一首")
             .add("last - 上一首")
             .add("play <id> - 指定播放")
@@ -149,19 +127,13 @@ public class MusicPlus extends PluginBase implements Listener {
     public boolean onCommand(CommandSender se, Command command, String s, String[] args) {
         String t = "";
         if (args.length >= 1) {
-
             if (isOpLabel(args[0]) && !se.isOp()) {
                 t = "需要OP权限";
-
             } else {
                 switch (args[0]) {
-                    default:
-                    case "help":
-                        t = HELP_LIST.toString();
-                        break;
-                    case "spawn":
-                        if (se instanceof Player) {
-                            Player p = (Player) se;
+                    case "help" -> t = HELP_LIST.toString();
+                    case "spawn" -> {
+                        if (se instanceof Player p) {
                             List<Double> pos = new ArrayList<>() {{
                                 add(p.getX());
                                 add(p.getY());
@@ -173,9 +145,9 @@ public class MusicPlus extends PluginBase implements Listener {
                             creSongStatus();
                             t = "Song status created and saved!";
                         }
-                        break;
+                    }
                     // mplus play <page> <0-9>
-                    case "play":
+                    case "play" -> {
                         if (args.length == 2) {
                             Song song = musicApi.setNowSongById(Integer.parseInt(args[1]));
                             if (song == null) {
@@ -184,45 +156,48 @@ public class MusicPlus extends PluginBase implements Listener {
                                 t = "已切换为Song: " + song.getSongName();
                             }
                         }
-                        break;
-                    case "next":
+                    }
+                    case "next" -> {
                         if (musicApi.nextSong()) {
                             t = "已切换到下一首！ " + musicApi.getNowSongName();
                         } else {
                             t = "下一首失败！可能是列表顺序播放导致！";
                         }
-                        break;
-                    case "last":
+                    }
+                    case "last" -> {
                         if (musicApi.lastSong()) {
                             t = "已切换到上一首！ " + musicApi.getNowSongName();
                         } else {
                             t = "上一首失败！可能是列表顺序播放导致！";
                         }
-                        break;
-                    case "mode":
+                    }
+                    case "mode" -> {
                         if (args.length == 2) {
-                            t = "播放模式切换为：" + musicApi.setPlayMode(Integer.parseInt(args[1]));
+                            var input = 0;
+                            try {
+                                input = Integer.parseInt(args[1]);
+                            } catch (NumberFormatException e) {
+                                t = "填写模式需要是数字！";
+                                e.printStackTrace();
+                            }
+                            musicApi.setPlayMode(MusicApi.PlayMode.values()[input]);
                         }
-                        break;
-                    case "reload":
+                    }
+                    case "reload" -> {
                         this.config = new Config(getDataFolder() + "/config.yml", 2);
                         t = "config reloaded!";
-                        break;
-                    case "reloadSong":
+                    }
+                    case "reloadSong" -> {
                         musicApi.loadAllSong(new File(getDataFolder(), "music"));
-                        musicApi.init(config.getInt("play_mode"));
+                        musicApi.init(MusicApi.PlayMode.values()[config.getInt("play_mode")]);
                         t = "已重载音乐列表！";
-                        break;
-                    case "my":
-                        MusicPlayerMenu.openMenu((Player) se);
-                        break;
-                    case "add":
+                    }
+                    case "my" -> MusicPlayerMenu.openMenu((Player) se);
+                    case "add" -> {
                         musicApi.addMusicTick((short) 15);
                         t = "快进15s";
-                        break;
-                    case "addI":
-                        musicApi.addMusicTick(Short.parseShort(args[1]));
-                        break;
+                    }
+                    case "addI" -> musicApi.addMusicTick(Short.parseShort(args[1]));
                 }
             }
 
@@ -240,19 +215,28 @@ public class MusicPlus extends PluginBase implements Listener {
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
-        CompletableFuture.runAsync(() -> {
-            if (isInMusicWorld(player)) {
-                MusicPlayer.addMusicPlayer(player);
+        getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
+            @Override
+            public void onRun() {
+                if (isInMusicWorld(player)) {
+                    MusicPlayer.addMusicPlayer(player);
+                }
             }
         });
     }
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        CompletableFuture.runAsync(() -> MusicPlayer.removeMusicPlayer(event.getPlayer()));
+        getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
+            @Override
+            public void onRun() {
+                MusicPlayer.removeMusicPlayer(event.getPlayer());
+            }
+        });
     }
 
-    public static void debug(String debug) {
-        getInstance().getLogger().notice(debug);
+    public static void debug(String s, Object... objects) {
+        getInstance().getLogger().warning(StrUtil.format(s, objects));
     }
+
 }

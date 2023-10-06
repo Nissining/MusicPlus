@@ -34,14 +34,11 @@ public class MusicPlayerMenu {
                     }
 
                     switch (getButtonText()) {
-                        case "调整音量":
-                            volMenu(mp);
-                            break;
-                        default:
-                        case "播放/停止音乐":
+                        case "调整音量" -> volMenu(mp);
+                        case "播放/停止音乐" -> {
                             mp.stopMusic = !mp.stopMusic;
                             player.sendMessage("音乐： " + (mp.stopMusic ? "停止" : "播放"));
-                            break;
+                        }
                     }
 
                 }
