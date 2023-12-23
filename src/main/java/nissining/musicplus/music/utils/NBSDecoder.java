@@ -59,6 +59,7 @@ public class NBSDecoder {
                     l.setName(readString(dis)).setVolume(dis.readByte());
                 }
             }
+            MusicPlus.debug("已加载Track: {}", decodeFile.getName());
             return new Song(speed, layerHashMap, songHeight, length, title, author, description, decodeFile);
         } catch (IOException e) {
             MusicPlus.debug(decodeFile.getName() + "解析错误！请打开 Minecraft Note Block 另存为classic再重新加载！");

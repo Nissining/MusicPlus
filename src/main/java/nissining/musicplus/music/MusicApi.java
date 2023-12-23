@@ -51,23 +51,17 @@ public class MusicApi {
         return nowSong.getSongName();
     }
 
-    public int loadAllSong(File musicFiles) {
-        if (!musicFiles.exists()) {
+    public int loadAllSong(File musicPath) {
+        if (!musicPath.exists()) {
             return 0;
         }
-        var files = musicFiles.listFiles();
+        var files = musicPath.listFiles(file ->
+                !file.isDirectory() && StrUtil.endWith(file.getName(), ".nbs"));
         if (files == null || files.length == 0) {
             return 0;
         }
         musicList = Arrays.stream(files)
-                .map(file -> {
-                    String fn = file.getName().trim();
-                    boolean isTrack = !file.isDirectory() && fn.endsWith(".nbs");
-                    if (isTrack) {
-                        return NBSDecoder.parse(file);
-                    }
-                    return null;
-                })
+                .map(NBSDecoder::parse)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(ArrayList::new));
         return musicList.size();
@@ -173,7 +167,7 @@ public class MusicApi {
         setMusicTick((short) Math.min(this.musicTick + i, nowSong.getLength()));
     }
 
-    public void tryPlay(List<MusicPlayer> mps) {
+    public void tryPlay() {
         if (nowSong == null) {
             return;
         }
@@ -193,7 +187,7 @@ public class MusicApi {
             nextSongByMode();
             return;
         }
-        playTick(mps, musicTick);
+        playTick(musicTick);
         lastPlayed = System.currentTimeMillis();
     }
 
@@ -238,7 +232,7 @@ public class MusicApi {
         put(24, 2.0f);
     }};
 
-    public void playTick(List<MusicPlayer> mps, int tick) {
+    public void playTick(int tick) {
         for (Layer l : nowSong.getLayerHashMap().values()) {
             var note = l.getNote(tick);
             if (note == null) {
@@ -246,23 +240,23 @@ public class MusicApi {
             }
             var sound = SOUNDS.getOrDefault((int) note.getInstrument(), null);
             var fl = KEYS.getOrDefault(note.getKey() - 33, 0F);
-            mps.stream()
-                    .filter(mp -> !mp.isStopMusic())
-                    .map(MusicPlayer::getPlayer)
-                    .filter(Objects::nonNull)
-                    .forEach(p -> {
-                        if (sound != null) {
-                            // 播放声音
-                            var soundPk = new PlaySoundPacket();
-                            soundPk.name = sound.getSound();
-                            soundPk.volume = l.getVolume();
-                            soundPk.pitch = fl;
-                            soundPk.x = p.getFloorX();
-                            soundPk.y = p.getFloorY();
-                            soundPk.z = p.getFloorZ();
-                            p.dataPacket(soundPk);
-                        }
-                    });
+            MusicPlayer.players.forEach((k, v) -> {
+                if (v.isStopMusic()) {
+                    return;
+                }
+                val p = v.getPlayer();
+                if (sound != null) {
+                    // 播放声音
+                    var soundPk = new PlaySoundPacket();
+                    soundPk.name = sound.getSound();
+                    soundPk.volume = l.getVolume();
+                    soundPk.pitch = fl;
+                    soundPk.x = p.getFloorX();
+                    soundPk.y = p.getFloorY();
+                    soundPk.z = p.getFloorZ();
+                    p.dataPacket(soundPk);
+                }
+            });
         }
     }
 

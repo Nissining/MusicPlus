@@ -3,30 +3,32 @@ package nissining.musicplus;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.nsgamebase.api.GbPlayerDataApi;
 import cn.nukkit.Player;
+import cn.nukkit.Server;
 import cn.nukkit.command.Command;
 import cn.nukkit.command.CommandSender;
-import cn.nukkit.entity.Entity;
 import cn.nukkit.event.EventHandler;
 import cn.nukkit.event.Listener;
 import cn.nukkit.event.player.PlayerJoinEvent;
 import cn.nukkit.event.player.PlayerQuitEvent;
 import cn.nukkit.level.Level;
 import cn.nukkit.level.Position;
-import cn.nukkit.nbt.tag.CompoundTag;
+import cn.nukkit.level.particle.FloatingTextParticle;
+import cn.nukkit.network.protocol.RemoveEntityPacket;
 import cn.nukkit.plugin.PluginBase;
 import cn.nukkit.scheduler.AsyncTask;
+import cn.nukkit.scheduler.Task;
 import cn.nukkit.utils.Config;
-import nissining.musicplus.entity.SongStatus;
+import cn.nukkit.utils.TextFormat;
+import lombok.val;
 import nissining.musicplus.music.MusicApi;
 import nissining.musicplus.music.utils.Song;
 import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.player.MusicPlayerMenu;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.StringJoiner;
+import java.util.*;
 
 /**
  * @author Nissining
@@ -36,8 +38,12 @@ public class MusicPlus extends PluginBase implements Listener {
     private Config config;
     public MusicApi musicApi = new MusicApi();
     public ArrayList<String> musicWorlds;
+    public HashMap<Position, FloatingTextParticle> songStatuses = new HashMap<>();
+
+    public boolean enableNsGameBase = false;
 
     public static MusicPlus ins;
+
     public static MusicPlus getInstance() {
         return ins;
     }
@@ -49,33 +55,66 @@ public class MusicPlus extends PluginBase implements Listener {
 
     @Override
     public void onEnable() {
+        initPlugins("NsGameBase");
         if (getDataFolder().mkdirs()) {
             debug("folder created");
         }
-        boolean music = new File(getDataFolder(), "music").mkdirs();
-        if (music) {
-            debug("music folder created");
-        }
-
+        initFolder("music", "players");
         saveResource("config.yml");
         config = getConfig();
         musicWorlds = new ArrayList<>(config.getStringList("music_worlds"));
         creSongStatus();
+
         var timer = DateUtil.timer();
         debug("正在加载track...");
+        var i = musicApi.loadAllSong(new File(getDataFolder(), "music"));
+        musicApi.init(MusicApi.PlayMode.values()[config.getInt("play_mode")]);
         getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
             @Override
             public void onRun() {
-                var i = musicApi.loadAllSong(new File(getDataFolder(), "music"));
-                musicApi.init(MusicApi.PlayMode.values()[config.getInt("play_mode")]);
                 while (!isDisabled()) {
                     ThreadUtil.sleep(musicApi.getNowSong().getDelay());
-                    musicApi.tryPlay(MusicPlayer.getMps());
+                    musicApi.tryPlay();
                 }
-                debug(StrUtil.format("已加载{}首Track！用时：{}ms", i, timer.interval()));
+                debug("已加载{}首Track！用时：{}ms", i, timer.interval());
             }
         });
+
+        getServer().getScheduler().scheduleRepeatingTask(new Task() {
+            @Override
+            public void onRun(int i) {
+                if (!songStatuses.isEmpty()) {
+                    for (Map.Entry<Position, FloatingTextParticle> entry : songStatuses.entrySet()) {
+                        var pk = new RemoveEntityPacket();
+                        pk.eid = entry.getValue().getEntityId();
+                        Server.broadcastPacket(Server.getInstance().getOnlinePlayers().values(), pk);
+                        entry.getValue().setTitle(musicApi.songStat());
+                        entry.getKey().getLevel().addParticle(entry.getValue());
+                    }
+                }
+            }
+        }, 20);
         getServer().getPluginManager().registerEvents(this, this);
+    }
+
+    private void initPlugins(String... names) {
+        for (String name : names) {
+            var plugin = getServer().getPluginManager().getPlugin(name);
+            if (plugin == null) {
+                throw new NullPointerException("缺少前置: " + name);
+            } else {
+                enableNsGameBase = plugin.isEnabled();
+            }
+        }
+    }
+
+    private void initFolder(String... names) {
+        for (String name : names) {
+            boolean f = new File(getDataFolder(), name).mkdirs();
+            if (f) {
+                debug(name + " folder created");
+            }
+        }
     }
 
     public boolean isInMusicWorld(Player player) {
@@ -92,9 +131,8 @@ public class MusicPlus extends PluginBase implements Listener {
             return;
         }
         Position position = new Position(pos.get(0), pos.get(1) + 3, pos.get(2), level);
-        CompoundTag nbt = Entity.getDefaultNBT(position);
-        SongStatus songStatus = new SongStatus(position.getChunk(), nbt);
-        songStatus.spawnToAll();
+        var fp = new FloatingTextParticle(position, "正在加载曲目列表...");
+        songStatuses.put(position, fp);
     }
 
     private static final String[] OP_LABEL = new String[]{
@@ -128,7 +166,7 @@ public class MusicPlus extends PluginBase implements Listener {
         String t = "";
         if (args.length >= 1) {
             if (isOpLabel(args[0]) && !se.isOp()) {
-                t = "需要OP权限";
+                t = "&c需要OP权限";
             } else {
                 switch (args[0]) {
                     case "help" -> t = HELP_LIST.toString();
@@ -143,7 +181,7 @@ public class MusicPlus extends PluginBase implements Listener {
                             config.set("song_status_level", p.level.getFolderName());
                             config.save();
                             creSongStatus();
-                            t = "Song status created and saved!";
+                            t = "&aSong status created and saved!";
                         }
                     }
                     // mplus play <page> <0-9>
@@ -151,24 +189,24 @@ public class MusicPlus extends PluginBase implements Listener {
                         if (args.length == 2) {
                             Song song = musicApi.setNowSongById(Integer.parseInt(args[1]));
                             if (song == null) {
-                                t = "播放失败！Song不存在！";
+                                t = "&c播放失败！Song不存在！";
                             } else {
-                                t = "已切换为Song: " + song.getSongName();
+                                t = "已切换为Song: &a" + song.getSongName();
                             }
                         }
                     }
                     case "next" -> {
                         if (musicApi.nextSong()) {
-                            t = "已切换到下一首！ " + musicApi.getNowSongName();
+                            t = "已切换到下一首: &a" + musicApi.getNowSongName();
                         } else {
-                            t = "下一首失败！可能是列表顺序播放导致！";
+                            t = "&c下一首失败！可能是列表顺序播放导致！";
                         }
                     }
                     case "last" -> {
                         if (musicApi.lastSong()) {
-                            t = "已切换到上一首！ " + musicApi.getNowSongName();
+                            t = "已切换到上一首: &a" + musicApi.getNowSongName();
                         } else {
-                            t = "上一首失败！可能是列表顺序播放导致！";
+                            t = "&c上一首失败！可能是列表顺序播放导致！";
                         }
                     }
                     case "mode" -> {
@@ -185,12 +223,12 @@ public class MusicPlus extends PluginBase implements Listener {
                     }
                     case "reload" -> {
                         this.config = new Config(getDataFolder() + "/config.yml", 2);
-                        t = "config reloaded!";
+                        t = "&aconfig reloaded!";
                     }
                     case "reloadSong" -> {
                         musicApi.loadAllSong(new File(getDataFolder(), "music"));
                         musicApi.init(MusicApi.PlayMode.values()[config.getInt("play_mode")]);
-                        t = "已重载音乐列表！";
+                        t = "&a已重载音乐列表！";
                     }
                     case "my" -> MusicPlayerMenu.openMenu((Player) se);
                     case "add" -> {
@@ -198,6 +236,16 @@ public class MusicPlus extends PluginBase implements Listener {
                         t = "快进15s";
                     }
                     case "addI" -> musicApi.addMusicTick(Short.parseShort(args[1]));
+                    case "clearStatus" -> {
+                        if (!songStatuses.isEmpty()) {
+                            for (Map.Entry<Position, FloatingTextParticle> entry : songStatuses.entrySet()) {
+                                var pk = new RemoveEntityPacket();
+                                pk.eid = entry.getValue().getEntityId();
+                                Server.broadcastPacket(Server.getInstance().getOnlinePlayers().values(), pk);
+                            }
+                            t = "&a已清除所有音乐状态全息字";
+                        }
+                    }
                 }
             }
 
@@ -206,7 +254,7 @@ public class MusicPlus extends PluginBase implements Listener {
         }
 
         if (!t.isEmpty()) {
-            se.sendMessage(t);
+            se.sendMessage(TextFormat.colorize(t));
         }
 
         return true;
@@ -218,9 +266,12 @@ public class MusicPlus extends PluginBase implements Listener {
         getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
             @Override
             public void onRun() {
-                if (isInMusicWorld(player)) {
-                    MusicPlayer.addMusicPlayer(player);
+                var mp = new MusicPlayer(player,
+                        new Config(getDataFolder() + "/players/" + player.getName() + ".yml", 2));
+                if (enableNsGameBase) {
+                    mp.stopMusic = GbPlayerDataApi.getMusicStat(player);
                 }
+                MusicPlayer.players.put(player.getName(), mp);
             }
         });
     }
@@ -230,7 +281,11 @@ public class MusicPlus extends PluginBase implements Listener {
         getServer().getScheduler().scheduleAsyncTask(new AsyncTask() {
             @Override
             public void onRun() {
-                MusicPlayer.removeMusicPlayer(event.getPlayer());
+                val mp = MusicPlayer.players.get(event.getPlayer().getName());
+                if (Objects.nonNull(mp)) {
+                    mp.save();
+                    MusicPlayer.players.remove(event.getPlayer().getName());
+                }
             }
         });
     }

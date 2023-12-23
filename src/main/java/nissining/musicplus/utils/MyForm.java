@@ -1,23 +1,45 @@
 package nissining.musicplus.utils;
 
 import cn.nukkit.Player;
+import cn.nukkit.form.element.Element;
 import cn.nukkit.form.element.ElementButton;
 import cn.nukkit.form.response.FormResponse;
 import cn.nukkit.form.response.FormResponseCustom;
 import cn.nukkit.form.response.FormResponseModal;
 import cn.nukkit.form.response.FormResponseSimple;
 import cn.nukkit.form.window.FormWindow;
+import cn.nukkit.form.window.FormWindowCustom;
+import cn.nukkit.form.window.FormWindowSimple;
 import com.google.gson.Gson;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 
 @RequiredArgsConstructor
-public abstract class FormAPI extends FormWindow {
+@Getter
+public abstract class MyForm extends FormWindow {
+
+    public static void simple(String title,
+                                    String sub,
+                                    LinkedList<? extends ElementButton> buttons,
+                                    MyForm form) {
+        form.window = new FormWindowSimple(title, sub, Collections.unmodifiableList(buttons));
+        form.sendToPlayer();
+    }
+
+    public static void custom(String title,
+                                    LinkedList<Element> buttons,
+                                    MyForm form) {
+        form.window = new FormWindowCustom(title, Collections.unmodifiableList(buttons));
+        form.sendToPlayer();
+    }
 
     private boolean closed = false;
     public final Player player;
-    private final FormWindow window;
+    private FormWindow window;
     private HashMap<Integer, Object> hashMap = new HashMap<>();
 
     public void setHashMap(HashMap<Integer, Object> hashMap) {
@@ -36,7 +58,7 @@ public abstract class FormAPI extends FormWindow {
         return String.valueOf(this.hashMap.get(1));
     }
 
-    public void sendToPlayer(Player player) {
+    public void sendToPlayer() {
         player.showFormWindow(this);
     }
 
