@@ -26,6 +26,8 @@ import nissining.musicplus.music.MusicApi;
 import nissining.musicplus.music.utils.Song;
 import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.player.MusicPlayerMenu;
+import tip.utils.Api;
+import tip.utils.variables.BaseVariable;
 
 import java.io.File;
 import java.util.*;
@@ -36,7 +38,7 @@ import java.util.*;
 public class MusicPlus extends PluginBase implements Listener {
 
     private Config config;
-    public MusicApi musicApi = new MusicApi();
+    public static MusicApi musicApi = new MusicApi();
     public ArrayList<String> musicWorlds;
     public HashMap<Position, FloatingTextParticle> songStatuses = new HashMap<>();
 
@@ -95,6 +97,7 @@ public class MusicPlus extends PluginBase implements Listener {
             }
         }, 20);
         getServer().getPluginManager().registerEvents(this, this);
+        Api.registerVariables("MusicPlus", VariableTest.class);
     }
 
     private void initPlugins(String... names) {
@@ -292,6 +295,17 @@ public class MusicPlus extends PluginBase implements Listener {
 
     public static void debug(String s, Object... objects) {
         getInstance().getLogger().warning(StrUtil.format(s, objects));
+    }
+
+    public static class VariableTest extends BaseVariable {
+        public VariableTest(Player player) {
+            super(player);
+        }
+
+        @Override
+        public void strReplace() {
+            addStrReplaceString("{mpnow}", String.valueOf(musicApi.getNowSongName()));
+        }
     }
 
 }
