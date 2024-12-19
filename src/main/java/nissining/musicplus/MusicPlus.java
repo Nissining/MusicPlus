@@ -3,7 +3,6 @@ package nissining.musicplus;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.nsgamebase.api.GbPlayerDataApi;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.command.Command;
@@ -39,7 +38,7 @@ public class MusicPlus extends PluginBase implements Listener {
 
     private Config config;
     public static MusicApi musicApi = new MusicApi();
-    public ArrayList<String> musicWorlds;
+    public static ArrayList<String> musicWorlds;
     public HashMap<Position, FloatingTextParticle> songStatuses = new HashMap<>();
 
     public boolean enableNsGameBase = false;
@@ -125,7 +124,7 @@ public class MusicPlus extends PluginBase implements Listener {
         }
     }
 
-    public boolean isInMusicWorld(Player player) {
+    public static boolean isInMusicWorld(Player player) {
         if (musicWorlds.isEmpty()) {
             return true;
         }
@@ -276,9 +275,6 @@ public class MusicPlus extends PluginBase implements Listener {
             public void onRun() {
                 var mp = new MusicPlayer(player,
                         new Config(getDataFolder() + "/players/" + player.getName() + ".yml", 2));
-                if (enableNsGameBase) {
-                    mp.stopMusic = GbPlayerDataApi.getMusicStat(player);
-                }
                 MusicPlayer.players.put(player.getName(), mp);
             }
         });
