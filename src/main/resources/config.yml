@@ -1,6 +1,7 @@
 # 指定播放世界
 # 不填写默认全局播放
-music_worlds: []
+music_worlds:
+  - world
 # 浮空字播放器坐标
 song_status_pos: []
 # 浮空字播放器世界

@@ -18,6 +18,8 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static nissining.musicplus.MusicPlus.isInMusicWorld;
+
 /**
  * @author Nissining
  **/
@@ -245,6 +247,12 @@ public class MusicApi {
                     return;
                 }
                 val p = v.getPlayer();
+
+                //不在指定世界内
+                if (!isInMusicWorld(p)) {
+                    return;
+                }
+
                 if (sound != null) {
                     // 播放声音
                     var soundPk = new PlaySoundPacket();
@@ -259,6 +267,7 @@ public class MusicApi {
             });
         }
     }
+
 
     public String songStat() {
         if (musicList.isEmpty()) {

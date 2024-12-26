@@ -37,7 +37,15 @@
             <artifactId>nukkit</artifactId>
             <version>1.0-SNAPSHOT</version>
             <scope>system</scope>
-            <systemPath>${project.basedir}/libs/Nukkit-MOT-SNAPSHOT.jar</systemPath>
+            <systemPath>${project.basedir}/libs/nk.jar</systemPath>
+        </dependency>
+
+        <dependency>
+            <groupId>tip</groupId>
+            <artifactId>tip</artifactId>
+            <version>1.0-SNAPSHOT</version>
+            <scope>system</scope>
+            <systemPath>${project.basedir}/libs/tip.jar</systemPath>
         </dependency>
     </dependencies>
 

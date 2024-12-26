@@ -3,7 +3,6 @@ package nissining.musicplus;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.thread.ThreadUtil;
 import cn.hutool.core.util.StrUtil;
-import cn.nsgamebase.api.GbPlayerDataApi;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.command.Command;
@@ -26,6 +25,8 @@ import nissining.musicplus.music.MusicApi;
 import nissining.musicplus.music.utils.Song;
 import nissining.musicplus.player.MusicPlayer;
 import nissining.musicplus.player.MusicPlayerMenu;
+import tip.utils.Api;
+import tip.utils.variables.BaseVariable;
 
 import java.io.File;
 import java.util.*;
@@ -36,8 +37,8 @@ import java.util.*;
 public class MusicPlus extends PluginBase implements Listener {
 
     private Config config;
-    public MusicApi musicApi = new MusicApi();
-    public ArrayList<String> musicWorlds;
+    public static MusicApi musicApi = new MusicApi();
+    public static ArrayList<String> musicWorlds;
     public HashMap<Position, FloatingTextParticle> songStatuses = new HashMap<>();
 
     public boolean enableNsGameBase = false;
@@ -73,7 +74,12 @@ public class MusicPlus extends PluginBase implements Listener {
             @Override
             public void onRun() {
                 while (!isDisabled()) {
-                    ThreadUtil.sleep(musicApi.getNowSong().getDelay());
+                    Song nowSong = musicApi.getNowSong();
+                    if (nowSong == null) {
+                        ThreadUtil.sleep(1000);
+                        continue;
+                    }
+                    ThreadUtil.sleep(nowSong.getDelay());
                     musicApi.tryPlay();
                 }
                 debug("已加载{}首Track！用时：{}ms", i, timer.interval());
@@ -95,6 +101,7 @@ public class MusicPlus extends PluginBase implements Listener {
             }
         }, 20);
         getServer().getPluginManager().registerEvents(this, this);
+        Api.registerVariables("MusicPlus", VariableTest.class);
     }
 
     private void initPlugins(String... names) {
@@ -117,7 +124,7 @@ public class MusicPlus extends PluginBase implements Listener {
         }
     }
 
-    public boolean isInMusicWorld(Player player) {
+    public static boolean isInMusicWorld(Player player) {
         if (musicWorlds.isEmpty()) {
             return true;
         }
@@ -268,9 +275,6 @@ public class MusicPlus extends PluginBase implements Listener {
             public void onRun() {
                 var mp = new MusicPlayer(player,
                         new Config(getDataFolder() + "/players/" + player.getName() + ".yml", 2));
-                if (enableNsGameBase) {
-                    mp.stopMusic = GbPlayerDataApi.getMusicStat(player);
-                }
                 MusicPlayer.players.put(player.getName(), mp);
             }
         });
@@ -292,6 +296,17 @@ public class MusicPlus extends PluginBase implements Listener {
 
     public static void debug(String s, Object... objects) {
         getInstance().getLogger().warning(StrUtil.format(s, objects));
+    }
+
+    public static class VariableTest extends BaseVariable {
+        public VariableTest(Player player) {
+            super(player);
+        }
+
+        @Override
+        public void strReplace() {
+            addStrReplaceString("{mpnow}", String.valueOf(musicApi.getNowSongName()));
+        }
     }
 
 }
